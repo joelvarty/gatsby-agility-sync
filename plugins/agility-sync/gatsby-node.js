@@ -1057,7 +1057,7 @@ exports.createPages = async (args, configOptions) => {
   const existingPageCount = await querySitemapNodeCount();
   console.log("existingPageCount", existingPageCount, process.env.gatsby_executing_command)
 
-  if (existingPageCount <= 1 || process.env.gatsby_executing_command != "develop") {
+  if (true) { //hack  existingPageCount <= 1 || process.env.gatsby_executing_command != "develop") {
     //PROCESS ALL PAGES
     logInfo("Creating pages from scratch.");
 
