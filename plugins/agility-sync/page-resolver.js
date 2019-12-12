@@ -3,22 +3,56 @@ var { logDebug, logInfo, logError, logWarning, logSuccess, asyncForEach } = requ
 
 class PageResolver {
 
-
-	constructor({ getNode, createNodeId }) {
+	constructor({ getNode, createNodeId, createNode, createContentDigest, deleteNode }) {
 		this.getNode = getNode;
+		this.createNode = createNode;
 		this.createNodeId = createNodeId;
+		this.deleteNode = deleteNode;
+		this.createContentDigest = createContentDigest;
 		this.contentByID = {};
 		this.contentByRefName = {};
 		this.sitemapNodes = {};
 	}
 
 
-	async expandPage({ page }) {
+	async expandPage({ page, existingPageNode }) {
 
-		//loop the modules...
+
 		const languageCode = page.languageCode;
 		const pagePath = page.path;
 		const pageID = page.pageID;
+
+		//if we have an existing page, copy over the resolved zones from it...
+		if (existingPageNode && existingPageNode.internal && existingPageNode.internal.content) {
+			const pJSON = existingPageNode.internal.content;
+			const existingPage = JSON.parse(pJSON);
+
+			for (const zoneName in existingPage.zones) {
+				const existingZone = existingPage.zones[zoneName];
+				const newZone = page.zones[zoneName];
+
+				if (existingZone != null) {
+
+					const replacedZones = [];
+
+					newZone.forEach((newModule) => {
+						const existingModule = existingZone.find((m) => {
+							return m.item.contentID === newModule.item.contentID || m.item.contentID === newModule.item.contentid
+						});
+
+						if (existingModule) {
+							replacedZones.push(existingModule);
+						} else {
+							replacedZones.push(newModule);
+						}
+					});
+
+					page.zones[zoneName] = replacedZones;
+
+				}
+			}
+		}
+
 
 		let newZones = {};
 
@@ -28,14 +62,18 @@ class PageResolver {
 				let newZone = [];
 				await asyncForEach(zone, async (module) => {
 
-					const contentItem = await this.expandContentByID({ contentID: module.item.contentid, languageCode: languageCode, pageID: pageID, depth: 0 });
+					let contentID = module.item.contentID;
+					if (!contentID) contentID = module.item.contentid;
+
+					const contentItem = await this.expandContentByID({ contentID, languageCode, pageID, depth: 0 });
 					if (contentItem != null) {
 						//add this module's content item into the zone
-						newZone.push(contentItem);
+						module.item = contentItem;
 					}
+					//newZone.push(module);
 
 				});
-				newZones[zoneName] = newZone;
+				//newZones[zoneName] = newZone;
 			}
 		}
 
@@ -52,7 +90,7 @@ class PageResolver {
 		// 	newZones[zone.name] = newZone;
 		// });
 
-		page.zones = newZones;
+		//page.zones = newZones;
 
 		//grab the dynamic item if we can
 
@@ -227,43 +265,55 @@ class PageResolver {
 		return contentItem;
 	}
 
+	async getDependantPageIDs({ contentID, languageCode }) {
+		const depNodeID = this.createNodeId(`agility-dep-${contentID}-${languageCode}`);
+		let depNode = await this.getNode(depNodeID);
+		if (depNode != null) {
+			return depNode.pageIDs;
+		}
+
+		return [];
+	}
+
+
+
 	async addAgilityPageDependency({ pageID, contentID, languageCode }) {
 
 
 		//track the dependency in GraphQL
-		// const depNodeID = createNodeId(`agility-dep-${nodeId}`);
-		// let depNode = await getNode(depNodeID);
+		const depNodeID = this.createNodeId(`agility-dep-${contentID}-${languageCode}`);
+		let depNode = await this.getNode(depNodeID);
 
-		// let paths = [path];
+		let pageIDs = [pageID];
 
-		// if (depNode != null) {
-		//   if (depNode.paths.indexOf(path) != -1) {
-		//     //we already have a dependancy here, kick out
-		//     return;
-		//   }
-		//   depNode.paths.push(path)
-		//   paths = depNode.paths;
-		// }
+		if (depNode != null) {
+			if (depNode.pageIDs.indexOf(pageID) != -1) {
+				//we already have a dependancy here, kick out
+				return;
+			}
+			depNode.pageIDs.push(pageID)
+			pageIDs = depNode.pageIDs;
+		}
 
-		// const obj = {
-		//   contentID: contentID,
-		//   languageCode: languageCode,
-		//   paths: paths
-		// };
+		const obj = {
+			contentID: contentID,
+			languageCode: languageCode,
+			pageIDs: pageIDs
+		};
 
-		// const nodeMeta = {
-		//   id: depNodeID,
-		//   parent: null,
-		//   children: [],
-		//   internal: {
-		//     type: `AgilityDependency`,
-		//     content: "",
-		//     contentDigest: createContentDigest(obj)
-		//   }
-		// }
-		// depNode = Object.assign({}, obj, nodeMeta);
+		const nodeMeta = {
+			id: depNodeID,
+			parent: null,
+			children: [],
+			internal: {
+				type: `AgilityPageDependency`,
+				content: "",
+				contentDigest: this.createContentDigest(obj)
+			}
+		}
+		depNode = Object.assign({}, obj, nodeMeta);
 
-		// await createNode(depNode);
+		await this.createNode(depNode);
 
 		//track the dependency in Gatsby...
 		// const state = store.getState();
@@ -272,6 +322,14 @@ class PageResolver {
 		// 	//HACK await createPageDependency({ path, nodeId });
 		// }
 
+	}
+
+	async removeAgilityDependency({ contentID, languageCode }) {
+		const depNodeID = this.createNodeId(`agility-dep-${contentID}-${languageCode}`);
+
+		deleteNode({
+			node: getNode(depNodeID),
+		});
 	}
 
 	getContentItemsByRefName({ refName, languageCode }) {

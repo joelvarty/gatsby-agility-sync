@@ -1,0 +1,9 @@
+/* ---- Global Footer ---- */
+.footer {
+  background-color: var(--gray-dark);
+  color: var(--gray-light);
+  padding: 25px 0px;
+}
+.footer .row {
+  text-align: center;
+}

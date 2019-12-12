@@ -6,8 +6,10 @@ var { graphql } = require("gatsby")
 
 exports.sourceNodes = async (args, configOptions) => {
   const { actions, createNodeId, createContentDigest, getNode, getNodes, store, cache, reporter, webhookBody } = args;
+  const { createNode, deleteNode, deletePage, touchNode } = actions
 
-  const pageResolver = new PageResolver({ getNode, createNodeId });
+  //create our page resolver
+  const pageResolver = new PageResolver({ getNode, createNodeId, createNode, createContentDigest, deleteNode });
 
   logInfo(`Sync Started ...`);
 
@@ -16,7 +18,7 @@ exports.sourceNodes = async (args, configOptions) => {
     logSuccess(JSON.stringify(webhookBody));
   }
 
-  const { createNode, deleteNode, deletePage, touchNode } = actions
+
   // Create nodes here, generally by downloading data
   // from a remote API.
 
@@ -121,6 +123,9 @@ exports.sourceNodes = async (args, configOptions) => {
         node: getNode(nodeIDRefName),
       });
 
+      //remove any page dependancies we were tracking for this item...
+      pageResolver.removeAgilityDependency({ contentID: ci.contentID, languageCode });
+
       logSuccess(`${ci.contentID}-${languageCode} - node deleted.`)
     } else {
       //*****  handle creates or updates *****
@@ -141,7 +146,7 @@ exports.sourceNodes = async (args, configOptions) => {
         logDebug(nodeContent);
       }
 
-      //create it once as an Item
+      //*** create it once as an Item indexed by contentID
       const nodeMeta = {
         id: nodeID,
         parent: null,
@@ -157,8 +162,7 @@ exports.sourceNodes = async (args, configOptions) => {
 
       await createNode(node);
 
-      //create it a second time referenced by the content def
-
+      //*** create it a second time referenced by the Content Def
       const nodeMeta2 = {
         id: nodeIDRefName,
         parent: null,
@@ -176,18 +180,26 @@ exports.sourceNodes = async (args, configOptions) => {
 
     }
 
-    //return any dependencies to the calling function...
-    const state = store.getState();
-    let paths = state.componentDataDependencies.nodes[nodeID];
-
-    if (paths && paths.length) {
-      return paths;
-    }
-
-    return [];
+    //return any page dependencies this item might have
+    return await pageResolver.getDependantPageIDs({ contentID: ci.contentID, languageCode });
 
   }
 
+  /**
+   * Resolve the dependancies on an existing page node.
+   */
+  const processDependantPageID = async (pageID, languageCode) => {
+
+    const nodeID = createNodeId(`agilitypage-${languageCode}-${pageID}`);
+    const pageNode = getNode(nodeID);
+    if (pageNode == null) return;
+
+    const json = pageNode.internal.content;
+    const pageItem = JSON.parse(json);
+
+    await processPageNode(pageItem, languageCode);
+
+  }
 
   /**
   * Process a page item in the local graphql storage.
@@ -243,8 +255,11 @@ exports.sourceNodes = async (args, configOptions) => {
 
       // pageItem.path = sitemapNode.path;
 
+      //get the previous page item...
+      const existingPageNode = getNode(nodeID);
+
       //expand this page's modules and content out
-      pageItem = await pageResolver.expandPage({ page: pageItem });
+      pageItem = await pageResolver.expandPage({ page: pageItem, existingPageNode });
 
       const nodeContent = JSON.stringify(pageItem);
 
@@ -310,10 +325,10 @@ exports.sourceNodes = async (args, configOptions) => {
         }
 
         for (let index = 0; index < syncItems.length; index++) {
-          const thesePaths = await processContentItemNode(syncItems[index], language);
+          const thesePageIDs = await processContentItemNode(syncItems[index], language);
 
-          thesePaths.forEach((value) => {
-            if (syncState.dependantPaths.indexOf(value) == -1) syncState.dependantPaths.push(value);
+          thesePageIDs.forEach((pageID) => {
+            if (syncState.dependantPageIDs.indexOf(pageID) == -1) syncState.dependantPageIDs.push(pageID);
           });
 
         }
@@ -370,18 +385,13 @@ exports.sourceNodes = async (args, configOptions) => {
         for (let index = 0; index < syncItems.length; index++) {
 
           let pageToProcess = syncItems[index];
-          const thesePaths = await processPageNode(pageToProcess, language);
+          await processPageNode(pageToProcess, language);
 
-          thesePaths.forEach((value) => {
-            if (syncState.dependantPaths.indexOf(value) == -1) syncState.dependantPaths.push(value);
-          });
 
-          syncState.pagesToUpdate.push({
-            pageID: pageToProcess.pageID,
-            languageCode: language
-          });
+          //make sure this page isn't in the list of pages we "HAVE" to process.
+          syncState.dependantPageIDs = syncState.dependantPageIDs.filter((pid) => pid != pageToProcess.pageID)
+
         }
-
 
         ticks = syncRet.ticks;
         logInfo(`Page Sync returned ${syncItems.length} pages - ticks: ${ticks}`);
@@ -391,6 +401,19 @@ exports.sourceNodes = async (args, configOptions) => {
 
 
       } while (ticks > 0)
+
+      //re-process any pages that have had dependant content items updated
+      if (syncState.dependantPageIDs.length > 0) {
+        logInfo(`Processing ${syncState.dependantPageIDs.length} dependant pages.`);
+
+        syncState.dependantPageIDs.forEach(async (pageID) => {
+
+          await processDependantPageID(pageID, language);
+
+        });
+
+        //TODO: process these...
+      }
 
     } catch (error) {
       if (console) console.error("Error occurred in page sync.", error);
@@ -423,12 +446,6 @@ exports.sourceNodes = async (args, configOptions) => {
 
   }
 
-  // DO THE WORK ----------------------------------------------------------------------------
-  //Loop through each language
-
-
-  const agilityCacheFolder = ".agility";
-  const stateFilePath = `${agilityCacheFolder}/syncState.json`;
 
   /**
    * Save the sync state
@@ -521,7 +538,6 @@ exports.sourceNodes = async (args, configOptions) => {
 
 
   //**** DO THE WORK ****
-
   const doTheWork = async () => {
 
     //get the saved sync state
@@ -535,8 +551,7 @@ exports.sourceNodes = async (args, configOptions) => {
     }
 
     //reset the pages that we have to update on this round...
-    syncState.pagesToUpdate = [{ pageID: -1, languageCode: "" }];
-    syncState.dependantPaths = [""];
+    syncState.dependantPageIDs = [];
 
     //mark all the previous nodes as touched so they don't get reset...
     await touchAllNodes();
@@ -927,7 +942,7 @@ exports.createPages = async (args, configOptions) => {
   const querySyncState = async () => {
     const result = await graphql(`query SyncStateQuery {
       agilitySyncState(id: {eq: "agilitysyncstate"}) {
-          dependantPaths
+          dependantPageIDs
           pagesToUpdate {
             pageID
             languageCode
@@ -1041,7 +1056,8 @@ exports.createPages = async (args, configOptions) => {
 
   }
 
-  const syncState = await querySyncState();
+  //HACK we don't need the sync state here...
+  //const syncState = await querySyncState();
 
   const sitemapNodes = await queryAllSitemapNodes();
   if (sitemapNodes == null) {

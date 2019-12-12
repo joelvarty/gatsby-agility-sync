@@ -6,7 +6,8 @@ import './AgilityPage.css'
 import modules from '../modules/_allModules.js'
 import pageTemplates from './_allPageTemplates.js'
 
-import GlobalHeader from '../components/GlobalHeader.js'
+import GlobalHeader from '../components/GlobalHeader'
+import GlobalFooter from '../components/GlobalFooter'
 
 export const query = graphql`
   query($pageID: Int!, $contentID: Int!, $languageCode: String!) {
@@ -29,14 +30,11 @@ export default class AgilityPage extends Component {
 
     render() {
 
-
-        const thisPath = this.props.path;
-        const pageID = this.props.pageContext.pageID;
         const contentID = this.props.pageContext.contentID;
 
         const pageJSON = this.props.data.agilityPage.internal.content;
         const page = JSON.parse(pageJSON);
-
+        console.log(page);
         let dynamicPageItem = null;
         if (contentID > 0) {
             const contentJSON = this.props.data.agilityContent.internal.content;
@@ -59,10 +57,14 @@ export default class AgilityPage extends Component {
         const PageTemplateComponentToRender = pageTemplates[pageTemplateName];
 
         return (
-            <div id="inner-body">
-                <div>{page.title} -  {thisPath} - {pageID} - {contentID} - {pageTemplateName}</div>
+
+            <div className="App">
+                {/* <PreviewBar agility={this.props.agility} /> */}
                 <GlobalHeader />
-                <PageTemplateComponentToRender {...propsForPageTemplate} />
+                <main className="main">
+                    <PageTemplateComponentToRender {...propsForPageTemplate} />
+                </main>
+                <GlobalFooter />
             </div>
         );
     }

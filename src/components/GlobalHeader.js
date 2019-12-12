@@ -9,19 +9,30 @@ export default props => (
         query GlobalHeaderQuery {
             agilityContent(properties: {referenceName: {eq: "globalheader"}}) {
                 agilityFields {
-                siteName
+                    siteName
+                    siteLogo {
+                        url
+                        label
+                    }
                 }
             }
-
+            allAgilitySitemap {
+                nodes {
+                    languageCode
+                    path
+                    menuText
+                    pageID
+                }
+            }
           }
         `}
         render={queryData => {
             const viewModel = {
                 item: queryData.agilityContent,
-                // menuLinks: queryData.allAgilitySitemapNode.nodes.filter(sitemapNode => {
-                //     //only return top level links
-                //     return sitemapNode.path.split('/').length == 2
-                // })
+                menuLinks: queryData.allAgilitySitemap.nodes.filter(sitemapNode => {
+                    //only return top level links
+                    return sitemapNode.path.split('/').length === 2
+                })
             }
             return (
                 <GlobalHeader {...viewModel} />
@@ -44,9 +55,10 @@ class GlobalHeader extends Component {
         return (
             <header className="header">
                 <div className="container">
+                    <img src={this.props.item.agilityFields.siteLogo.url} alt={this.props.item.agilityFields.siteLogo.label} />
                     <label>{this.props.item.agilityFields.siteName}</label>
                     <ul>
-                        {/* {this.renderLinks()} */}
+                        {this.renderLinks()}
                     </ul>
                 </div>
             </header>

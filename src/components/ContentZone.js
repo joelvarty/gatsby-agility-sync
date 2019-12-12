@@ -15,12 +15,12 @@ export default class ContentZone extends Component {
         }
 
         modulesForThisContentZone.forEach(moduleItem => {
-            const moduleDefName = moduleItem.properties.definitionName;
+            const moduleDefName = moduleItem.module;
             const ModuleComponentToRender = this.props.modules[moduleDefName];
             const moduleProps = {
-                key: moduleItem.contentID,
+                key: moduleItem.item.contentID,
                 dynamicPageItem: dynamicPageItem,
-                item: moduleItem
+                item: moduleItem.item
             }
 
 
