@@ -9,16 +9,17 @@ class PostDetails extends Component {
     }
 
     render() {
+        console.log("props module", this.props)
         const post = this.props.dynamicPageItem;
         return (
             <section className="post-details">
                 <div className="container">
                     <div className="post">
-                        <h1>{post.fields.title}</h1>
-                        {post.fields.image &&
-                            <img src={post.fields.image.url + '?w=860'} alt="" />
+                        <h1>{post.agilityFields.title}</h1>
+                        {post.agilityFields.image &&
+                            <img src={post.agilityFields.image.url + '?w=860'} alt="" />
                         }
-                        <div className="post-content" dangerouslySetInnerHTML={this.renderPostContent(post.fields.details)}></div>
+                        <div className="post-content" dangerouslySetInnerHTML={this.renderPostContent(post.agilityFields.details)}></div>
                     </div>
                 </div>
             </section>

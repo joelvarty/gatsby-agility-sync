@@ -4,9 +4,10 @@ export default class ContentZone extends Component {
     renderModules = () => {
         let modules = []
 
-
         const contentZoneName = this.props.name;
-        const modulesForThisContentZone = this.props.pageContext.page.zones[contentZoneName];
+        const page = this.props.page;
+        const dynamicPageItem = this.props.dynamicPageItem;
+        const modulesForThisContentZone = page.zones[contentZoneName];
 
         if (modulesForThisContentZone === undefined) {
             console.error(`Cannot render modules for zone "${contentZoneName}". This does not appear to be a valid content zone for this page template.`)
@@ -14,11 +15,11 @@ export default class ContentZone extends Component {
         }
 
         modulesForThisContentZone.forEach(moduleItem => {
-
-            const ModuleComponentToRender = this.props.modules[moduleItem.properties.definitionName];
+            const moduleDefName = moduleItem.properties.definitionName;
+            const ModuleComponentToRender = this.props.modules[moduleDefName];
             const moduleProps = {
                 key: moduleItem.contentID,
-                dynamicPageItem: this.props.pageContext.dynamicPageItem,
+                dynamicPageItem: dynamicPageItem,
                 item: moduleItem
             }
 
@@ -26,7 +27,7 @@ export default class ContentZone extends Component {
             if (ModuleComponentToRender) {
                 modules.push(<ModuleComponentToRender {...moduleProps} />)
             } else {
-                console.error(`No react component found for the module "${moduleItem.module}". Cannot render module.`);
+                console.error(`No react component found for the module "${moduleDefName}". Cannot render module.`);
             }
         })
 

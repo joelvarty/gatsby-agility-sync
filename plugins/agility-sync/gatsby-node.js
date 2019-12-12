@@ -1,10 +1,16 @@
 var agility = require('./content-fetch')
 var path = require('path')
+var { logDebug, logInfo, logError, logWarning, logSuccess, asyncForEach } = require('./plugin-util')
+var { PageResolver } = require("./page-resolver")
+var { graphql } = require("gatsby")
 
 exports.sourceNodes = async (args, configOptions) => {
   const { actions, createNodeId, createContentDigest, getNode, getNodes, store, cache, reporter, webhookBody } = args;
+
+  const pageResolver = new PageResolver({ getNode, createNodeId });
+
   logInfo(`Sync Started ...`);
-  console.log("config options", configOptions);
+
   if (webhookBody && Object.keys(webhookBody).length > 0) {
     logSuccess(`Webhook being processed...`);
     logSuccess(JSON.stringify(webhookBody));
@@ -59,6 +65,9 @@ exports.sourceNodes = async (args, configOptions) => {
           sitemapNode.contentID = -1;
         }
 
+        //stash this node in our temp cache for page resolving..
+        pageResolver.addSitemapNode({ node: sitemapNode, languageCode });
+
         const sitemapNodeContent = JSON.stringify(sitemapNode);
 
         if (configOptions.debug) {
@@ -100,6 +109,7 @@ exports.sourceNodes = async (args, configOptions) => {
   const processContentItemNode = async (ci, languageCode) => {
 
     const nodeID = createNodeId(`agilitycontent-${ci.contentID}-${languageCode}`);
+    const nodeIDRefName = createNodeId(`agilitycontentref-${ci.contentID}-${languageCode}`);
 
     if (ci.properties.state === 3) {
       //*****  handle deletes *****
@@ -107,17 +117,23 @@ exports.sourceNodes = async (args, configOptions) => {
         node: getNode(nodeID),
       });
 
+      deleteNode({
+        node: getNode(nodeIDRefName),
+      });
+
       logSuccess(`${ci.contentID}-${languageCode} - node deleted.`)
     } else {
       //*****  handle creates or updates *****
 
-
-      // Hack: `fields` is a reserved name...
-      ci.myFields = ci.fields;
+      //switch `fields` to 'agilityFields' - (fields is a reserved name)
+      ci.agilityFields = ci.fields;
       delete ci.fields;
 
       // Add-in languageCode for this item so we can filter it by lang later
       ci.languageCode = languageCode;
+
+      //stash this item in the page resolver for later...
+      pageResolver.addContent({ content: ci });
 
       const nodeContent = JSON.stringify(ci);
 
@@ -125,6 +141,7 @@ exports.sourceNodes = async (args, configOptions) => {
         logDebug(nodeContent);
       }
 
+      //create it once as an Item
       const nodeMeta = {
         id: nodeID,
         parent: null,
@@ -137,7 +154,26 @@ exports.sourceNodes = async (args, configOptions) => {
       }
       const node = Object.assign({}, ci, nodeMeta);
 
+
       await createNode(node);
+
+      //create it a second time referenced by the content def
+
+      const nodeMeta2 = {
+        id: nodeIDRefName,
+        parent: null,
+        children: [],
+        internal: {
+          type: `AgilityContent_${ci.properties.definitionName}`,
+          content: nodeContent,
+          contentDigest: createContentDigest(ci)
+        }
+      }
+      const node2 = Object.assign({}, ci, nodeMeta2);
+
+      //create it once as an Item
+      await createNode(node2);
+
     }
 
     //return any dependencies to the calling function...
@@ -173,34 +209,42 @@ exports.sourceNodes = async (args, configOptions) => {
       //*****  handle creates or updates *****
 
       //fix the zones property so it isn't a dictionary
-      if (pageItem.zones) {
-        let pageZones = [];
+      // if (pageItem.zones) {
+      //   let pageZones = [];
 
-        Object.keys(pageItem.zones).forEach((zoneName) => {
-          const pageZone = {
-            name: zoneName,
-            modules: Object.values(pageItem.zones[zoneName])
-          }
-          pageZones.push(pageZone);
-        });
+      //   Object.keys(pageItem.zones).forEach((zoneName) => {
+      //     const pageZone = {
+      //       name: zoneName,
+      //       modules: Object.values(pageItem.zones[zoneName])
+      //     }
+      //     pageZones.push(pageZone);
+      //   });
 
 
-        // Overwrite previous zones property
-        pageItem.zones = pageZones;
-      }
-
-      //grab the sitemap node for this page...
-      let sitemapIDStr = `sitemap-${languageCode}-${pageItem.pageID}`;
-      const sitemapNodeID = createNodeId(sitemapIDStr);
-      const sitemapNode = await getNode(sitemapNodeID);
-
-      if (sitemapNode != null) {
-        pageItem.path = sitemapNode.path;
-      }
+      //   // Overwrite previous zones property
+      //   pageItem.zones = pageZones;
+      // }
 
 
       // Add-in languageCode for this item so we can filter it by lang later
       pageItem.languageCode = languageCode;
+
+      //HACK: I don't think we need the sitemap node...
+      // //grab the sitemap node for this page...
+      // let sitemapIDStr = `sitemap-${languageCode}-${pageItem.pageID}`;
+      // const sitemapNodeID = createNodeId(sitemapIDStr);
+      // const sitemapNode = await getNode(sitemapNodeID);
+
+      // if (sitemapNode == null) {
+      //   logWarning(`Page with id ${pageItem.pageID} in lang ${languageCode} could not be found on the sitemap.`);
+      //   return [];
+
+      // }
+
+      // pageItem.path = sitemapNode.path;
+
+      //expand this page's modules and content out
+      pageItem = await pageResolver.expandPage({ page: pageItem });
 
       const nodeContent = JSON.stringify(pageItem);
 
@@ -212,15 +256,17 @@ exports.sourceNodes = async (args, configOptions) => {
         id: nodeID,
         parent: null,
         children: [],
+        pageID: pageItem.pageID,
+        languageCode: languageCode,
         internal: {
           type: `AgilityPage`,
           content: nodeContent,
           contentDigest: createContentDigest(pageItem)
         }
       }
-      const node = Object.assign({}, pageItem, nodeMeta);
+      //const node = Object.assign({}, pageItem, nodeMeta);
 
-      await createNode(node);
+      await createNode(nodeMeta);
 
 
     }
@@ -566,11 +612,6 @@ exports.createPages = async (args, configOptions) => {
 
     const contentItem = JSON.parse(json);
 
-    //switch myFields back to fields
-    const fields = contentItem.myFields;
-    delete contentItem.myFields;
-    contentItem.fields = fields;
-
     //only traverse 5 levels deep
     if (depth < 5) {
 
@@ -903,93 +944,44 @@ exports.createPages = async (args, configOptions) => {
 
   const createAgilityPage = async (sitemapNode) => {
 
-    logInfo(`Create page id ${sitemapNode.pageID} in ${sitemapNode.languageCode}`); ``
+    if (sitemapNode.isFolder) return;
 
     let languageCode = sitemapNode.languageCode;
-    const pageResult = await queryPage({ pageID: sitemapNode.pageID, languageCode: sitemapNode.languageCode });
-
-    let page = null;
-    if (pageResult && pageResult.agilityPage) page = pageResult.agilityPage;
-
     let pagePath = sitemapNode.path;
 
-    addAgilityPageDependency({ path: pagePath, nodeID: pageResult.agilityPage.id });
-
-
-
-    //TODO: handle link pages...
-
-
-    //if the page has no zones, it's a folder
-    if (!page.zones || page.zones.length < 1) {
-      return;
-    }
-
-
-    //pull out the content for all the modules on this page...
-    let newZones = {};
-    await asyncForEach(page.zones, async (zone) => {
-      let newZone = [];
-      await asyncForEach(zone.modules, async (module) => {
-        const contentItem = await expandContentByID({ contentID: module.item.contentid, languageCode: languageCode, path: pagePath, depth: 0 });
-        if (contentItem != null) {
-          //add this module's content item into the zone
-          newZone.push(contentItem);
-        }
-
-      });
-      newZones[zone.name] = newZone;
-    });
-
-    page.zones = newZones;
-
-    // If this is a dynamic page, grab the dynamic item and pass-it to the context
-    let dynamicPageItem = null;
-
-    if (sitemapNode.contentID && sitemapNode.contentID > 0) {
-      const contentItem = await expandContentByID({ contentID: sitemapNode.contentID, languageCode: languageCode, path: pagePath, depth: 0 });
-      if (contentItem != null) {
-        //add the dynamic content item
-        dynamicPageItem = contentItem;
-
-      }
-    }
-
     // Do we have this page in other languages? If so, add-in some info for them so they can be found/accessed easily
-    sitemapNode.nodesInOtherLanguages = [];
-    if (configOptions.languages.length > 1) {
-      result.data.allAgilitySitemapNode.nodes.forEach(smn => {
-        // If we found a page with the same ID and its NOT this same page
-        if (smn.pageID === sitemapNode.pageID && smn.languageCode !== sitemapNode.languageCode) {
 
-          let languageForThisOtherNode = configOptions.languages.find(l => {
-            return l.code === smn.languageCode
-          })
+    //HACK is this neccessary?
+    // sitemapNode.nodesInOtherLanguages = [];
+    // if (configOptions.languages.length > 1) {
+    //   result.data.allAgilitySitemapNode.nodes.forEach(smn => {
+    //     // If we found a page with the same ID and its NOT this same page
+    //     if (smn.pageID === sitemapNode.pageID && smn.languageCode !== sitemapNode.languageCode) {
 
-          sitemapNode.nodesInOtherLanguages.push({
-            name: smn.name,
-            pageID: smn.pageID,
-            path: smn.path,
-            menuText: smn.menuText,
-            languageName: languageForThisOtherNode.name,
-            languageCode: languageForThisOtherNode.code
-          });
-        }
-        return;
-      })
-    }
+    //       let languageForThisOtherNode = configOptions.languages.find(l => {
+    //         return l.code === smn.languageCode
+    //       })
+
+    //       sitemapNode.nodesInOtherLanguages.push({
+    //         name: smn.name,
+    //         pageID: smn.pageID,
+    //         path: smn.path,
+    //         menuText: smn.menuText,
+    //         languageName: languageForThisOtherNode.name,
+    //         languageCode: languageForThisOtherNode.code
+    //       });
+    //     }
+    //     return;
+    //   })
+    // }
 
     let createPageArgs = {
       path: pagePath,
       component: pageTemplate,
       context: {
-        page: page,
-        sitemapNode: sitemapNode,
-        modules: modules,
-        pageTemplates: pageTemplates,
-        dynamicPageItem: dynamicPageItem,
-        languageCode: sitemapNode.languageCode,
-        agilityConfig: configOptions
+        pageID: sitemapNode.pageID,
+        contentID: sitemapNode.contentID,
+        languageCode: sitemapNode.languageCode
       }
     }
 
@@ -1051,67 +1043,17 @@ exports.createPages = async (args, configOptions) => {
 
   const syncState = await querySyncState();
 
-  const modules = configOptions.modules;
-  const pageTemplates = configOptions.pageTemplates;
-
-  const existingPageCount = await querySitemapNodeCount();
-  console.log("existingPageCount", existingPageCount, process.env.gatsby_executing_command)
-
-  if (true) { //hack  existingPageCount <= 1 || process.env.gatsby_executing_command != "develop") {
-    //PROCESS ALL PAGES
-    logInfo("Creating pages from scratch.");
-
-    const sitemapNodes = await queryAllSitemapNodes();
-    if (sitemapNodes == null) {
-      logWarning(`Could not get all sitemap node(s)`)
-      return;
-    }
-
-    //loop all nodes we returned...
-
-    await asyncForEach(sitemapNodes.allAgilitySitemap.nodes, async (sitemapNode) => {
-      await createAgilityPage(sitemapNode);
-    });
-
-  } else {
-    //DELTA
-    console.log("Creating pages from delta: ", syncState.agilitySyncState.pagesToUpdate, syncState.agilitySyncState.dependantPaths);
-    //get the ids of the pages we have to update
-    const pagesToUpdate = syncState.agilitySyncState.pagesToUpdate;
-
-    //loop all the pages whose dependency has changed
-    await asyncForEach(syncState.agilitySyncState.dependantPaths, async (path) => {
-      if (path === "") return;
-      //hack - hard coded lang...
-      const sitemapNodes = await querySitemapNodeByPath({ path: path, languageCode: "en-us" });
-      if (sitemapNodes != null) {
-        await asyncForEach(sitemapNodes.allAgilitySitemap.nodes, async (sitemapNode) => {
-          pagesToUpdate.push({ pageID: sitemapNode.pageID, languageCode: sitemapNode.languageCode });
-        });
-      }
-    });
-
-    // loop all the pages that have changed...
-    await asyncForEach(pagesToUpdate, async (pageToUpdate) => {
-
-      //ignore pages with invalid ids
-      if (pageToUpdate.pageID < 1) return;
-
-      logInfo("Process page", pageToUpdate.pageID);
-
-      //TODO handle dynamic pages here with an optional contentID...
-      const sitemapNodes = await querySitemapNodes({ pageID: pageToUpdate.pageID, languageCode: pageToUpdate.languageCode });
-      if (sitemapNodes == null) {
-        logWarning(`Could not get sitemap node(s) for page id ${pageToUpdate.pageID} in language ${pageToUpdate.languageCode}.`)
-        return;
-      }
-
-      //loop all nodes we returned...
-      await asyncForEach(sitemapNodes.allAgilitySitemap.nodes, async (sitemapNode) => {
-        await createAgilityPage(sitemapNode);
-      });
-    });
+  const sitemapNodes = await queryAllSitemapNodes();
+  if (sitemapNodes == null) {
+    logWarning(`Could not get all sitemap node(s)`)
+    return;
   }
+
+  //loop all nodes we returned...
+
+  await asyncForEach(sitemapNodes.allAgilitySitemap.nodes, async (sitemapNode) => {
+    await createAgilityPage(sitemapNode);
+  });
 
   // Create default language path redirect (if required)
   // if (configOptions.languages.length > 1) {
@@ -1129,41 +1071,12 @@ exports.createPages = async (args, configOptions) => {
 
 }
 
-exports.onCreateNode = args => {
+exports.onCreateNode = ({ node, actions }) => {
+
 
 }
 
-async function asyncForEach(array, callback) {
-  for (let index = 0; index < array.length; index++) {
-    await callback(array[index], index, array);
-  }
-}
 
-function logSuccess(message) {
-  message = `AgilityCMS => ${message} `;
-  console.log('\x1b[32m%s\x1b[0m', message);
-}
-
-function logWarning(message) {
-  message = `AgilityCMS => ${message} `;
-  console.log('\x1b[33m%s\x1b[0m', message);
-}
-
-function logError(message) {
-  message = `AgilityCMS => ${message} `;
-  console.log('\x1b[31m%s\x1b[0m', message);
-}
-
-function logInfo(message) {
-  message = `AgilityCMS => ${message} `;
-  console.log(message);
-}
-
-function logDebug(message) {
-  console.log('#######################################################################');
-  message = `AgilityCMS(debug) => ${message} `;
-  console.log('"\x1b[35m%s\x1b[0m', message);
-}
 
 
 

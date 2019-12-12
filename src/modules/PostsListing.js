@@ -16,7 +16,7 @@ export default props => (
               totalCount
               nodes {
                 contentID
-                myFields {
+                agilityFields {
                     title
                     details
                     image {
@@ -82,13 +82,13 @@ class PostsListing extends Component {
             this.props.posts.forEach(post => {
                 posts.push(
                     <div className="post" key={post.contentID}>
-                        {post.myFields.image &&
-                            <img src={post.myFields.image.url + '?w=860'} alt={post.myFields.image.label} />
+                        {post.agilityFields.image &&
+                            <img src={post.agilityFields.image.url + '?w=860'} alt={post.agilityFields.image.label} />
                         }
                         <h2>
-                            <Link to={post.dynamicUrl}>{post.myFields.title}</Link>
+                            <Link to={post.dynamicUrl}>{post.agilityFields.title}</Link>
                         </h2>
-                        <p dangerouslySetInnerHTML={this.renderPostExcerpt(post.myFields.details)}></p>
+                        <p dangerouslySetInnerHTML={this.renderPostExcerpt(post.agilityFields.details)}></p>
                     </div>
                 )
             })
@@ -103,7 +103,7 @@ class PostsListing extends Component {
 
             < section className="posts-listing" >
                 <div className="container">
-                    <h1>{this.props.item.fields.title}</h1>
+                    <h1>{this.props.item.agilityFields.title}</h1>
                     {this.renderPosts()}
                 </div>
             </section >
