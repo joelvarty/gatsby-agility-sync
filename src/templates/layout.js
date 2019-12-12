@@ -3,8 +3,8 @@ import './layout.css'
 
 export default ({ children }) => {
 	return (
-		<section class="section">
-			<div class="container">
+		<section className="section">
+			<div className="container">
 				{children}
 			</div>
 
