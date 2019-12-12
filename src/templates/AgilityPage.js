@@ -51,7 +51,7 @@ export default class AgilityPage extends Component {
         // //get the page template name that we need to render
         const pageTemplateName = page.templateName.replace(/[^0-9a-zA-Z]/g, '');
 
-        // //build the props
+        // //build the  props
         const propsForPageTemplate = {
             page: page,
             dynamicPageItem: dynamicPageItem,
