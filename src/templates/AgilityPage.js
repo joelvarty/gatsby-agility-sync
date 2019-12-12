@@ -3,6 +3,7 @@ import { graphql } from "gatsby"
 import { Helmet } from "react-helmet"
 
 import Layout from "./layout"
+import PreviewBar from "../components/PreviewBar"
 
 //You need to pass-down the available modules to the app because they will be rendered dynamically
 import modules from '../modules/_allModules.js'
@@ -37,6 +38,8 @@ export default class AgilityPage extends Component {
         const pageJSON = this.props.data.agilityPage.internal.content;
         const page = JSON.parse(pageJSON);
         const title = this.props.pageContext.title;
+        const isPreview = this.props.pageContext.isPreview;
+
 
 
         let dynamicPageItem = null;
@@ -67,7 +70,7 @@ export default class AgilityPage extends Component {
                     {page.seo.metaDescription && <meta name="description" content={page.seo.metaDescription} />}
                 </Helmet>
 
-                {/* <PreviewBar agility={this.props.agility} /> */}
+                <PreviewBar isPreview={isPreview} />
                 <GlobalHeader />
                 <main className="main">
                     <PageTemplateComponentToRender {...propsForPageTemplate} />

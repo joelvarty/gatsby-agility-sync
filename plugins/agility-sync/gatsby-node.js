@@ -11,7 +11,7 @@ exports.sourceNodes = async (args, configOptions) => {
   //create our page resolver
   const pageResolver = new PageResolver({ getNode, createNodeId, createNode, createContentDigest, deleteNode });
 
-  logInfo(`Sync Started ...`);
+  logInfo(`Sync Started (${process.env.NODE_ENV})...`);
 
   if (webhookBody && Object.keys(webhookBody).length > 0) {
     logSuccess(`Webhook being processed...`);
@@ -556,6 +556,7 @@ exports.createPages = async (args, configOptions) => {
 
   logInfo(`Create Pages Started...`);
 
+  let isPreview = configOptions.isPreview;
   let pageTemplate = null;
   if (configOptions.defaultPageTemplate) {
     pageTemplate = path.resolve(configOptions.defaultPageTemplate);
@@ -635,7 +636,8 @@ exports.createPages = async (args, configOptions) => {
         pageID: sitemapNode.pageID,
         contentID: sitemapNode.contentID,
         languageCode: sitemapNode.languageCode,
-        title: sitemapNode.title
+        title: sitemapNode.title,
+        isPreview: isPreview
       }
     }
 
