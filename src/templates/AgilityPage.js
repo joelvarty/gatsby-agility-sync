@@ -1,6 +1,8 @@
 import React, { Component } from 'react';
 import { graphql } from "gatsby"
-import './AgilityPage.css'
+import { Helmet } from "react-helmet"
+
+import Layout from "./layout"
 
 //You need to pass-down the available modules to the app because they will be rendered dynamically
 import modules from '../modules/_allModules.js'
@@ -34,17 +36,18 @@ export default class AgilityPage extends Component {
 
         const pageJSON = this.props.data.agilityPage.internal.content;
         const page = JSON.parse(pageJSON);
-        console.log(page);
+        const title = this.props.pageContext.title;
+
+
         let dynamicPageItem = null;
         if (contentID > 0) {
-            const contentJSON = this.props.data.agilityContent.internal.content;
-            dynamicPageItem = JSON.parse(contentJSON);
+            if (this.props.data.agilityContent && this.props.data.agilityContent.internal.content) {
+                const contentJSON = this.props.data.agilityContent.internal.content;
+                dynamicPageItem = JSON.parse(contentJSON);
+
+            }
         }
 
-        //HACK
-        //get the page object from context
-        // const page = this.props.pageContext;//.page;
-        // console.log("page", page)
         // //get the page template name that we need to render
         const pageTemplateName = page.templateName.replace(/[^0-9a-zA-Z]/g, '');
 
@@ -57,15 +60,21 @@ export default class AgilityPage extends Component {
         const PageTemplateComponentToRender = pageTemplates[pageTemplateName];
 
         return (
+            <Layout>
+                <Helmet>
+                    <meta charSet="utf-8" />
+                    <title>{title} - Example Template</title>
+                    {page.seo.metaDescription && <meta name="description" content={page.seo.metaDescription} />}
+                </Helmet>
 
-            <div className="App">
                 {/* <PreviewBar agility={this.props.agility} /> */}
                 <GlobalHeader />
                 <main className="main">
                     <PageTemplateComponentToRender {...propsForPageTemplate} />
                 </main>
                 <GlobalFooter />
-            </div>
+
+            </Layout>
         );
     }
 }

@@ -159,12 +159,6 @@ class PageResolver {
 		const json = JSON.stringify(item);
 		item = JSON.parse(json);
 
-		//HACK previous code... remove
-		// const item = await this.queryContentItem({ contentID, languageCode });
-		// if (item == null || item.internal == null) return null;
-		// const json = item.internal.content;
-		// if (json == null || json === "") return null;
-
 		//track the dependency for this node...
 		await this.addAgilityPageDependency({ pageID, contentID: contentID, languageCode: languageCode });
 
@@ -315,20 +309,13 @@ class PageResolver {
 
 		await this.createNode(depNode);
 
-		//track the dependency in Gatsby...
-		// const state = store.getState();
-		// let paths = state.componentDataDependencies.nodes[nodeId];
-		// if (!paths || (paths.indexOf && paths.indexOf(path) == -1)) {
-		// 	//HACK await createPageDependency({ path, nodeId });
-		// }
-
 	}
 
 	async removeAgilityDependency({ contentID, languageCode }) {
 		const depNodeID = this.createNodeId(`agility-dep-${contentID}-${languageCode}`);
 
-		deleteNode({
-			node: getNode(depNodeID),
+		await this.deleteNode({
+			node: this.getNode(depNodeID),
 		});
 	}
 

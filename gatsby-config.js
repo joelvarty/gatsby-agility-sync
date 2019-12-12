@@ -21,6 +21,7 @@ module.exports = {
     title: "Agility CMS Gatsby Starter",
   },
   plugins: [
+    `gatsby-plugin-react-helmet`,
     {
       resolve: "agility-sync", //the name of the plugin
       options: {

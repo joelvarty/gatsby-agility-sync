@@ -19,8 +19,10 @@
     "@agility/gatsby-source-agilitycms": "^0.3.7",
     "dotenv": "^8.1.0",
     "gatsby": "^2.18.11",
+    "gatsby-plugin-react-helmet": "^3.1.18",
     "react": "^16.12.0",
     "react-dom": "^16.12.0",
+    "react-helmet": "^5.2.1",
     "truncate-html": "^1.0.2"
   },
   "devDependencies": {

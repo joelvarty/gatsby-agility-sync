@@ -9,7 +9,7 @@ class PostDetails extends Component {
     }
 
     render() {
-        console.log("props module", this.props)
+
         const post = this.props.dynamicPageItem;
         return (
             <section className="post-details">

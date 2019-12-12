@@ -55,13 +55,14 @@ class GlobalHeader extends Component {
         return (
             <header className="header">
                 <div className="container">
-                    <img src={this.props.item.agilityFields.siteLogo.url} alt={this.props.item.agilityFields.siteLogo.label} />
+                    <a href="/" className="logo-link"><img src={this.props.item.agilityFields.siteLogo.url} alt={this.props.item.agilityFields.siteLogo.label} /></a>
                     <label>{this.props.item.agilityFields.siteName}</label>
-                    <ul>
+                    <ul className="links">
                         {this.renderLinks()}
                     </ul>
                 </div>
             </header>
+
         );
     }
 }

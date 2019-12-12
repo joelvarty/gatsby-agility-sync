@@ -220,40 +220,8 @@ exports.sourceNodes = async (args, configOptions) => {
     } else {
       //*****  handle creates or updates *****
 
-      //fix the zones property so it isn't a dictionary
-      // if (pageItem.zones) {
-      //   let pageZones = [];
-
-      //   Object.keys(pageItem.zones).forEach((zoneName) => {
-      //     const pageZone = {
-      //       name: zoneName,
-      //       modules: Object.values(pageItem.zones[zoneName])
-      //     }
-      //     pageZones.push(pageZone);
-      //   });
-
-
-      //   // Overwrite previous zones property
-      //   pageItem.zones = pageZones;
-      // }
-
-
       // Add-in languageCode for this item so we can filter it by lang later
       pageItem.languageCode = languageCode;
-
-      //HACK: I don't think we need the sitemap node...
-      // //grab the sitemap node for this page...
-      // let sitemapIDStr = `sitemap-${languageCode}-${pageItem.pageID}`;
-      // const sitemapNodeID = createNodeId(sitemapIDStr);
-      // const sitemapNode = await getNode(sitemapNodeID);
-
-      // if (sitemapNode == null) {
-      //   logWarning(`Page with id ${pageItem.pageID} in lang ${languageCode} could not be found on the sitemap.`);
-      //   return [];
-
-      // }
-
-      // pageItem.path = sitemapNode.path;
 
       //get the previous page item...
       const existingPageNode = getNode(nodeID);
@@ -282,7 +250,6 @@ exports.sourceNodes = async (args, configOptions) => {
       //const node = Object.assign({}, pageItem, nodeMeta);
 
       await createNode(nodeMeta);
-
 
     }
 
@@ -583,7 +550,6 @@ exports.sourceNodes = async (args, configOptions) => {
 
 }
 
-
 exports.createPages = async (args, configOptions) => {
   const { graphql, actions, getNode, createNodeId, createContentDigest, store } = args;
   const { createPage, deletePage, createNode, createRedirect, createPageDependency } = actions;
@@ -594,291 +560,6 @@ exports.createPages = async (args, configOptions) => {
   if (configOptions.defaultPageTemplate) {
     pageTemplate = path.resolve(configOptions.defaultPageTemplate);
   }
-
-  /**
-   * Expands linked content given a page id.
-   * @param {*} { contentID, languageCode, pageID, depth }
-   * @returns
-   */
-  const expandContentByID = async ({ contentID, languageCode, path, depth }) => {
-
-    logInfo(`Expand content - ${contentID} - ${languageCode}`);
-    const item = await queryContentItem({ contentID, languageCode });
-
-    if (item == null || item.agilityContent == null || item.agilityContent.internal == null) return null;
-
-    const json = item.agilityContent.internal.content;
-
-    if (json == null || json === "") return null;
-
-    //track the dependency for this node...
-    await addAgilityPageDependency({ path, nodeId: item.agilityContent.id, contentID: item.agilityContent.contentID, languageCode: languageCode });
-
-    return await expandContent({ json, languageCode, path, depth });
-
-  }
-
-  /**
-   * Expand any linked content based on the json.
-   * @param {*} { json, languageCode, pageID, depth }
-   * @returns The expanded content item.
-   */
-  const expandContent = async ({ json, languageCode, path, depth }) => {
-
-    const contentItem = JSON.parse(json);
-
-    //only traverse 5 levels deep
-    if (depth < 5) {
-
-      const newDepth = depth + 1;
-
-      //*** loop all the fields */
-      for (const fieldName in fields) {
-        if (fields.hasOwnProperty(fieldName)) {
-          let fieldValue = fields[fieldName];
-
-          //*** pull in the linked content by id */
-          if (fieldValue.contentID && parseInt(fieldValue.contentID) > 0) {
-            const linkedContentID = parseInt(fieldValue.contentID);
-            console.log(`Found content id ${linkedContentID} in field ${fieldName}`, fieldValue);
-
-            //expand this content item...
-            const linkedContentItem = await expandContentByID({ contentID: linkedContentID, languageCode, path, depth: newDepth })
-            if (linkedContentItem != null) {
-              //attach it to the field value..
-              fieldValue.item = linkedContentItem;
-            }
-
-          }
-
-          //*** pull in the linked content by multiple ids */
-          else if (fieldValue.sortids && fieldValue.sortids.split) {
-            //pull in the linked content by multiple ids
-            console.log(`Found content ids ${fieldValue.sortids} in field ${fieldName}`, fieldValue);
-
-            const linkedContentItems = [];
-            const linkedContentIDs = fieldValue.sortids.split(',');
-
-            for (const i in linkedContentIDs) {
-              const linkedContentID = parseInt(linkedContentIDs[i]);
-              if (linkedContentID > 0) {
-                //expand this content item...
-                const linkedContentItem = await expandContentByID({ contentID: linkedContentID, languageCode, path, depth: newDepth })
-                if (linkedContentItem != null) {
-                  //add it to the array
-                  linkedContentItems.push(linkedContentItem);
-                }
-              }
-            }
-
-            //attach these items to the field value
-            fieldValue.items = linkedContentItems;
-          }
-
-          //*** pull in the linked content by reference name */
-          else if (fieldValue.referencename) {
-
-            console.log(`Found content ref ${fieldValue.referencename} in field ${fieldName}`, fieldValue);
-
-            const lstNodes = await queryContentList({ referenceName: fieldValue.referencename, languageCode });
-            const lst = [];
-
-            await asyncForEach(lstNodes, async (nodeItem) => {
-
-              var jsonItem = nodeItem.internal.content;
-
-              //track the dependency for this node...
-              await addAgilityPageDependency({ path, nodeId: nodeItem.id, contentID: nodeItem.contentID, languageCode: languageCode });
-
-              let linkedContentItem = await expandContent({ json: jsonItem, languageCode, path, depth: newDepth });
-              if (linkedContentItem != null) {
-                lst.push(linkedContentItem);
-              }
-
-            });
-
-            fieldValue.items = lst;
-
-          }
-
-        }
-
-      }
-    }
-
-
-    return contentItem;
-  }
-
-  const addAgilityPageDependency = async ({ path, nodeId, contentID, languageCode }) => {
-
-
-    //track the dependency in GraphQL
-    // const depNodeID = createNodeId(`agility-dep-${nodeId}`);
-    // let depNode = await getNode(depNodeID);
-
-    // let paths = [path];
-
-    // if (depNode != null) {
-    //   if (depNode.paths.indexOf(path) != -1) {
-    //     //we already have a dependancy here, kick out
-    //     return;
-    //   }
-    //   depNode.paths.push(path)
-    //   paths = depNode.paths;
-    // }
-
-    // const obj = {
-    //   contentID: contentID,
-    //   languageCode: languageCode,
-    //   paths: paths
-    // };
-
-    // const nodeMeta = {
-    //   id: depNodeID,
-    //   parent: null,
-    //   children: [],
-    //   internal: {
-    //     type: `AgilityDependency`,
-    //     content: "",
-    //     contentDigest: createContentDigest(obj)
-    //   }
-    // }
-    // depNode = Object.assign({}, obj, nodeMeta);
-
-    // await createNode(depNode);
-
-    //track the dependency in Gatsby...
-    const state = store.getState();
-    let paths = state.componentDataDependencies.nodes[nodeId];
-    if (!paths || (paths.indexOf && paths.indexOf(path) == -1)) {
-      //HACK await createPageDependency({ path, nodeId });
-    }
-
-  }
-
-  /**
-   * Queries a content list and returns json for each item.
-   *
-   * @param {*} { referenceName, languageCode }
-   */
-  const queryContentList = async ({ referenceName, languageCode }) => {
-    const result = await graphql(`
-      query ContentItemQuery {
-
-        allAgilityContent(
-          filter: {properties: {referenceName: {eq: "${referenceName}"}}, languageCode: {eq: "${languageCode}"}}) {
-          nodes {
-            id
-            internal {
-              content
-            }
-          }
-        }
-      }`);
-
-    if (result.errors) {
-      throw result.errors
-    }
-
-    const nodes = result.data.allAgilityContent.nodes;
-
-    return nodes;
-
-  }
-
-  const queryContentItem = async ({ contentID, languageCode }) => {
-    const result = await graphql(`
-      query ContentItemQuery {
-        agilityContent(contentID: {eq: ${contentID}}, languageCode: {eq: "${languageCode}"}) {
-          id
-          internal {
-            content
-          }
-        }
-      }`);
-
-    if (result.errors) {
-      throw result.errors
-    }
-
-
-
-    return result.data;
-  }
-
-  const queryPage = async ({ pageID, languageCode }) => {
-    const result = await graphql(`
-      query SitemapNodesQuery {
-        agilityPage(pageID: {eq: ${pageID}}, languageCode: {eq: "${languageCode}"}) {
-          id
-          pageID
-          excludeFromOutputCache
-          languageCode
-          menuText
-          name
-          pageType
-          properties {
-            modified
-            state
-            versionID
-          }
-          redirectUrl
-          scripts {
-            excludedFromGlobal
-          }
-          securePage
-          seo {
-            metaDescription
-            metaHTML
-            metaKeywords
-          }
-          templateName
-          title
-          visible {
-            menu
-            sitemap
-          }
-          zones {
-            name
-            modules {
-              item {
-                contentid
-              }
-              module
-            }
-          }
-        }
-      }`);
-
-    if (result.errors) {
-      throw result.errors
-    }
-
-    return result.data;
-  };
-
-  const querySitemapNodes = async ({ pageID, languageCode }) => {
-    const result = await graphql(`query SitemapNodesQuery {
-        allAgilitySitemap(filter: {pageID: {eq: ${pageID}}, languageCode: {eq: "${languageCode}"}}) {
-          nodes {
-            name
-            contentID
-            pageID
-            path
-            title
-            menuText
-            languageCode
-          }
-        }
-      }`);
-
-    if (result.errors) {
-      throw result.errors
-    }
-
-    return result.data;
-  };
 
   const queryAllSitemapNodes = async () => {
     const result = await graphql(`query SitemapNodesQuery {
@@ -902,67 +583,24 @@ exports.createPages = async (args, configOptions) => {
     return result.data;
   };
 
-  const querySitemapNodeByPath = async ({ path, languageCode }) => {
-    const result = await graphql(`query SitemapNodesPathQuery {
-        allAgilitySitemap(filter: {path: {eq: "${path}"}, languageCode: {eq: "${languageCode}"}}) {
-          nodes {
-            name
-            contentID
-            pageID
-            path
-            title
-            menuText
-            languageCode
-          }
-        }
-      }`);
-
-    if (result.errors) {
-      throw result.errors
-    }
-
-    return result.data;
-  };
-
-  const querySitemapNodeCount = async () => {
-    const result = await graphql(`query allSitePageCountQuery {
-        allSitePage {
-          totalCount
-        }
-      }`);
-
-    if (result.errors) {
-      throw result.errors
-    }
-
-    return result.data.allSitePage.totalCount;
-  };
-
-
-  const querySyncState = async () => {
-    const result = await graphql(`query SyncStateQuery {
-      agilitySyncState(id: {eq: "agilitysyncstate"}) {
-          dependantPageIDs
-          pagesToUpdate {
-            pageID
-            languageCode
-          }
-        }
-      }`);
-
-    if (result.errors) {
-      throw result.errors
-    }
-
-    return result.data;
-  };
-
-  const createAgilityPage = async (sitemapNode) => {
+  const createAgilityPage = async (sitemapNode, isHomePage) => {
 
     if (sitemapNode.isFolder) return;
 
     let languageCode = sitemapNode.languageCode;
     let pagePath = sitemapNode.path;
+    if (isHomePage) {
+
+      //create a redirect from sitemapNode.path to /
+      await createRedirect({
+        fromPath: sitemapNode.path,
+        toPath: "/",
+        isPermantent: true,
+        redirectInBrowser: true
+      });
+
+      pagePath = "/";
+    }
 
     // Do we have this page in other languages? If so, add-in some info for them so they can be found/accessed easily
 
@@ -996,7 +634,8 @@ exports.createPages = async (args, configOptions) => {
       context: {
         pageID: sitemapNode.pageID,
         contentID: sitemapNode.contentID,
-        languageCode: sitemapNode.languageCode
+        languageCode: sitemapNode.languageCode,
+        title: sitemapNode.title
       }
     }
 
@@ -1056,19 +695,19 @@ exports.createPages = async (args, configOptions) => {
 
   }
 
-  //HACK we don't need the sync state here...
-  //const syncState = await querySyncState();
 
   const sitemapNodes = await queryAllSitemapNodes();
   if (sitemapNodes == null) {
-    logWarning(`Could not get all sitemap node(s)`)
+    logWarning(`Could not get sitemap node(s)`)
     return;
   }
 
-  //loop all nodes we returned...
+  let isHomePage = true;
 
+  //loop all nodes we returned...
   await asyncForEach(sitemapNodes.allAgilitySitemap.nodes, async (sitemapNode) => {
-    await createAgilityPage(sitemapNode);
+    await createAgilityPage(sitemapNode, isHomePage);
+    isHomePage = false;
   });
 
   // Create default language path redirect (if required)
