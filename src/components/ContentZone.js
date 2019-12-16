@@ -15,7 +15,7 @@ export default class ContentZone extends Component {
         }
 
         modulesForThisContentZone.forEach(moduleItem => {
-            const moduleDefName = moduleItem.module;
+            const moduleDefName = moduleItem.item.properties.definitionName;
             const ModuleComponentToRender = this.props.modules[moduleDefName];
             const moduleProps = {
                 key: moduleItem.item.contentID,

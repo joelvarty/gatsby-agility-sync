@@ -6,42 +6,7 @@ import truncate from 'truncate-html'
 export default props => (
     <StaticQuery
         query={graphql`
-        query PostListingModuleQuery {
-            allAgilityContent(
-              filter: {
-                properties: { referenceName: { eq: "posts"}}
-              },
-              limit: 10
-            ) {
-              totalCount
-              nodes {
-                contentID
-                agilityFields {
-                    title
-                    details
-                    image {
-                        url
-                    }
-                    category {
-                        item {
-                            agilityFields {
-                                title
-                            }
-                        }
-                    }
-                    author {
-                        item {
-                            agilityFields {
-                                name
-                            }
-                        }
-                    }
-                }
-                    properties {
-                        referenceName
-                    }
-                }
-            }
+        query FeaturedPostModuleQuery {
             allAgilitySitemap (
               filter: {
                 contentID: {ne: -1}
@@ -56,10 +21,10 @@ export default props => (
         `}
         render={queryData => {
 
-            let posts = [];
+            let posts = props.item.agilityFields.posts.items;
 
             //get the dynamic URLs for each post
-            queryData.allAgilityContent.nodes.forEach(post => {
+            posts.forEach(post => {
 
 
                 const sitemapNodeForPost = queryData.allAgilitySitemap.nodes.find(sitemapNode => {
@@ -69,7 +34,7 @@ export default props => (
 
 
                 post.dynamicUrl = sitemapNodeForPost.path;
-                posts.push(post);
+
             })
 
             const viewModel = {
@@ -77,20 +42,19 @@ export default props => (
                 posts: posts
             }
             return (
-                <PostsListing {...viewModel} />
+                <FeaturedPosts {...viewModel} />
             );
         }}
     />
 )
 
-
-class PostsListing extends Component {
+class FeaturedPosts extends Component {
     renderPostExcerpt(html) {
         const excerpt = truncate(html, { stripTags: true, length: 160 });
         return { __html: excerpt };
     }
     renderPosts() {
-        if (this.props.posts != null) {
+        if (this.props.posts) {
             let posts = [];
 
             this.props.posts.forEach(post => {

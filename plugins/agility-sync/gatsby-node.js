@@ -1,7 +1,7 @@
 var agility = require('./content-fetch')
 var path = require('path')
 var { logDebug, logInfo, logError, logWarning, logSuccess, asyncForEach } = require('./plugin-util')
-var { PageResolver } = require("./page-resolver")
+var { ContentResolver } = require("./content-resolver")
 var { graphql } = require("gatsby")
 
 exports.sourceNodes = async (args, configOptions) => {
@@ -9,7 +9,7 @@ exports.sourceNodes = async (args, configOptions) => {
   const { createNode, deleteNode, deletePage, touchNode } = actions
 
   //create our page resolver
-  const pageResolver = new PageResolver({ getNode, createNodeId, createNode, createContentDigest, deleteNode });
+  const contentResolver = new ContentResolver({ getNode, createNodeId, createNode, createContentDigest, deleteNode });
 
   logInfo(`Sync Started (${process.env.NODE_ENV})...`);
 
@@ -68,7 +68,7 @@ exports.sourceNodes = async (args, configOptions) => {
         }
 
         //stash this node in our temp cache for page resolving..
-        pageResolver.addSitemapNode({ node: sitemapNode, languageCode });
+        contentResolver.addSitemapNode({ node: sitemapNode, languageCode });
 
         const sitemapNodeContent = JSON.stringify(sitemapNode);
 
@@ -124,7 +124,7 @@ exports.sourceNodes = async (args, configOptions) => {
       });
 
       //remove any page dependancies we were tracking for this item...
-      pageResolver.removeAgilityDependency({ contentID: ci.contentID, languageCode });
+      contentResolver.removeAgilityDependency({ contentID: ci.contentID, languageCode });
 
       logSuccess(`${ci.contentID}-${languageCode} - node deleted.`)
     } else {
@@ -138,50 +138,83 @@ exports.sourceNodes = async (args, configOptions) => {
       ci.languageCode = languageCode;
 
       //stash this item in the page resolver for later...
-      pageResolver.addContent({ content: ci });
-
-      const nodeContent = JSON.stringify(ci);
-
-      if (configOptions.debug) {
-        logDebug(nodeContent);
-      }
-
-      //*** create it once as an Item indexed by contentID
-      const nodeMeta = {
-        id: nodeID,
-        parent: null,
-        children: [],
-        internal: {
-          type: `AgilityContent`, //_${ci.properties.definitionName}`,
-          content: nodeContent,
-          contentDigest: createContentDigest(ci)
-        }
-      }
-      const node = Object.assign({}, ci, nodeMeta);
-
-
-      await createNode(node);
-
-      //*** create it a second time referenced by the Content Def
-      const nodeMeta2 = {
-        id: nodeIDRefName,
-        parent: null,
-        children: [],
-        internal: {
-          type: `AgilityContent_${ci.properties.definitionName}`,
-          content: nodeContent,
-          contentDigest: createContentDigest(ci)
-        }
-      }
-      const node2 = Object.assign({}, ci, nodeMeta2);
-
-      //create it once as an Item
-      await createNode(node2);
+      contentResolver.addContentByID({ content: ci });
 
     }
 
-    //return any page dependencies this item might have
-    return await pageResolver.getDependantPageIDs({ contentID: ci.contentID, languageCode });
+
+  }
+
+  /**
+   * Actually resolve and store all the newly created content items.
+   */
+  const processNewlySyncedItems = async () => {
+
+    const allContentByID = contentResolver.getNewlySyncedConent();
+    const depPageIDs = [];
+
+    for (const languageCode in allContentByID) {
+      const allContentByLanguage = allContentByID[languageCode];
+      for (const contentID in allContentByLanguage) {
+        let ci = allContentByLanguage[contentID];
+
+        //expand the relationships on this...
+        ci = await contentResolver.expandContent({ contentItem: ci, languageCode, pageID: -1, depth: 0 });
+
+        //stash the item by reference name
+        contentResolver.addContentByRefName({ content: ci });
+
+        //generate the node ids for graphql
+        const nodeID = createNodeId(`agilitycontent-${ci.contentID}-${languageCode}`);
+        const nodeIDRefName = createNodeId(`agilitycontentref-${ci.contentID}-${languageCode}`);
+
+        const nodeContent = JSON.stringify(ci);
+
+        if (configOptions.debug) {
+          logDebug(nodeContent);
+        }
+
+        //*** create it once as an Item indexed by contentID
+        const nodeMeta = {
+          id: nodeID,
+          parent: null,
+          children: [],
+          internal: {
+            type: `AgilityContent`, //_${ci.properties.definitionName}`,
+            content: nodeContent,
+            contentDigest: createContentDigest(ci)
+          }
+        }
+        const node = Object.assign({}, ci, nodeMeta);
+        await createNode(node);
+
+        //*** create it a second time referenced by the Content Def
+        const nodeMeta2 = {
+          id: nodeIDRefName,
+          parent: null,
+          children: [],
+          internal: {
+            type: `AgilityContent_${ci.properties.definitionName}`,
+            content: nodeContent,
+            contentDigest: createContentDigest(ci)
+          }
+        }
+        const node2 = Object.assign({}, ci, nodeMeta2);
+        await createNode(node2);
+
+        //resolve the dependant page ids for this item
+        let thesePageIDs = await contentResolver.getDependantPageIDs({ contentID: ci.contentID, languageCode });
+
+        //only store the unique ones...
+        thesePageIDs.forEach((pageID) => {
+          if (depPageIDs.indexOf(pageID) == -1) depPageIDs.push(pageID);
+        });
+      }
+
+
+    }
+
+    return depPageIDs;
 
   }
 
@@ -227,7 +260,7 @@ exports.sourceNodes = async (args, configOptions) => {
       const existingPageNode = getNode(nodeID);
 
       //expand this page's modules and content out
-      pageItem = await pageResolver.expandPage({ page: pageItem, existingPageNode });
+      pageItem = await contentResolver.expandPage({ page: pageItem, existingPageNode });
 
       const nodeContent = JSON.stringify(pageItem);
 
@@ -292,12 +325,7 @@ exports.sourceNodes = async (args, configOptions) => {
         }
 
         for (let index = 0; index < syncItems.length; index++) {
-          const thesePageIDs = await processContentItemNode(syncItems[index], language);
-
-          thesePageIDs.forEach((pageID) => {
-            if (syncState.dependantPageIDs.indexOf(pageID) == -1) syncState.dependantPageIDs.push(pageID);
-          });
-
+          await processContentItemNode(syncItems[index], language);
         }
 
         ticks = syncRet.ticks;
@@ -308,6 +336,10 @@ exports.sourceNodes = async (args, configOptions) => {
 
 
       } while (ticks > 0)
+
+
+      //process all the newly synced items...
+      syncState.dependantPageIDs = await processNewlySyncedItems();
 
     } catch (error) {
       if (console) console.error("Error occurred in content sync.", error);

@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { graphql } from "gatsby"
 import { Helmet } from "react-helmet"
 
-import Layout from "./layout"
+import Layout from "./Layout"
 import PreviewBar from "../components/PreviewBar"
 
 //You need to pass-down the available modules to the app because they will be rendered dynamically
@@ -67,7 +67,7 @@ export default class AgilityPage extends Component {
                 <Helmet>
                     <meta charSet="utf-8" />
                     <title>{title} - Example Template</title>
-                    {page.seo.metaDescription && <meta name="description" content={page.seo.metaDescription} />}
+                    <meta name="description" content={page.seo.metaDescription} />
                 </Helmet>
 
                 <PreviewBar isPreview={isPreview} />

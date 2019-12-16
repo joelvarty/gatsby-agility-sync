@@ -19,6 +19,9 @@ class PostDetails extends Component {
                         {post.agilityFields.image &&
                             <img src={post.agilityFields.image.url + '?w=860'} alt="" />
                         }
+
+                        <div><span className="author">{post.agilityFields.author.item.agilityFields.name}</span> | {post.agilityFields.category.item.agilityFields.title}</div>
+                        <hr />
                         <div className="post-content" dangerouslySetInnerHTML={this.renderPostContent(post.agilityFields.details)}></div>
                     </div>
                 </div>

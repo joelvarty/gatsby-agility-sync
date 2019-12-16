@@ -1,7 +1,31 @@
 .posts-listing {
     padding: 16px;
+
+}
+.posts-listing-container {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: space-between;
+    align-content: flex-start;
+
 }
 
+.posts-listing .post {
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 1px solid #cbcbcb;
+    width: 48%;
+    border-radius: 5px;
+
+}
+
+.posts-listing .post h2 {
+    margin-bottom: 5px;
+    font-size: 22px;
+}
+
+
+
 .posts-listing .post img {
-    max-width: 100%;
+    width: 100%;
 }

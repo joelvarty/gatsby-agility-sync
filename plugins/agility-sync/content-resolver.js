@@ -1,7 +1,7 @@
 var { logDebug, logInfo, logError, logWarning, logSuccess, asyncForEach } = require('./plugin-util')
 
 
-class PageResolver {
+class ContentResolver {
 
 	constructor({ getNode, createNodeId, createNode, createContentDigest, deleteNode }) {
 		this.getNode = getNode;
@@ -99,22 +99,32 @@ class PageResolver {
 
 	}
 
-	addContent({ content }) {
+
+	addContentByID({ content }) {
 
 		const languageCode = content.languageCode;
 		const contentID = content.contentID;
-		const refName = content.properties.referenceName;
 
 		if (!this.contentByID[languageCode]) {
 			this.contentByID[languageCode] = {}
 		}
 
+		this.contentByID[languageCode][contentID] = content;
+
+	}
+
+	addContentByRefName({ content }) {
+		const refName = content.properties.referenceName;
+		const languageCode = content.languageCode;
+
 		if (!this.contentByRefName[languageCode]) {
 			this.contentByRefName[languageCode] = {}
+			this.contentByRefName[languageCode][refName] = content;
 		}
+	}
 
-		this.contentByID[languageCode][contentID] = content;
-		this.contentByRefName[languageCode][refName] = content;
+	getNewlySyncedConent() {
+		return this.contentByID;
 	}
 
 	addSitemapNode({ node, languageCode }) {
@@ -145,22 +155,35 @@ class PageResolver {
 	   * @param {*} { contentID, languageCode, pageID, depth }
 	   * @returns
 	   */
-	async expandContentByID({ contentID, languageCode, pageID, depth }) {
+	async expandContentByID({ contentID, languageCode, pageID, depth, maxDepth }) {
 
 		if (!this.contentByID[languageCode]) return null;
 
 		let item = this.contentByID[languageCode][contentID];
+		if (item == null) {
+			//if the item wasn't available in our cache, fall back on the GraphQL...
+			item = await this.queryContentItem({ contentID, languageCode });
 
-		if (item == null) return null;
+			if (item == null) return null;
+
+			//since we pulled this from graphql, don't traverse it any deeper
+			maxDepth = 0;
+		}
+
+
+
+		if (!maxDepth) maxDepth = 3;
 
 		//convert the object to JSON and back to avoid circular references...
 		const json = JSON.stringify(item);
 		item = JSON.parse(json);
 
+
+
 		//track the dependency for this node...
 		await this.addAgilityPageDependency({ pageID, contentID: contentID, languageCode: languageCode });
 
-		return await this.expandContent({ contentItem: item, languageCode, pageID, depth });
+		return await this.expandContent({ contentItem: item, languageCode, pageID, depth, maxDepth });
 
 	}
 
@@ -169,10 +192,12 @@ class PageResolver {
 	 * @param {*} { item, languageCode, pageID, depth }
 	 * @returns The expanded content item.
 	 */
-	async expandContent({ contentItem, languageCode, pageID, depth }) {
+	async expandContent({ contentItem, languageCode, pageID, depth, maxDepth }) {
 
-		//only traverse 3 levels deep
-		if (depth < 3) {
+		if (!maxDepth) maxDepth = 3;
+
+		//only traverse as deep as we are supposed to...
+		if (depth < maxDepth) {
 
 			const agilityFields = contentItem.agilityFields;
 			const newDepth = depth + 1;
@@ -183,11 +208,13 @@ class PageResolver {
 					let fieldValue = agilityFields[fieldName];
 
 					//*** pull in the linked content by id */
-					if (fieldValue.contentID && parseInt(fieldValue.contentID) > 0) {
-						const linkedContentID = parseInt(fieldValue.contentID);
+					if ((fieldValue.contentID && parseInt(fieldValue.contentID) > 0)
+						|| (fieldValue.contentid && parseInt(fieldValue.contentid) > 0)) {
+						let linkedContentID = parseInt(fieldValue.contentID);
+						if (isNaN(linkedContentID)) linkedContentID = parseInt(fieldValue.contentid);
 
 						//expand this content item...
-						const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth })
+						const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth, maxDepth: 1 })
 						if (linkedContentItem != null) {
 							//attach it to the field value..
 							fieldValue.item = linkedContentItem;
@@ -206,7 +233,7 @@ class PageResolver {
 							const linkedContentID = parseInt(linkedContentIDs[i]);
 							if (linkedContentID > 0) {
 								//expand this content item...
-								const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth })
+								const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth, maxDepth: 1 })
 								if (linkedContentItem != null) {
 									//add it to the array
 									linkedContentItems.push(linkedContentItem);
@@ -232,7 +259,7 @@ class PageResolver {
 								//track the dependency for this node...
 								await addAgilityPageDependency({ pageID, contentID: thisItem.contentID, languageCode: languageCode });
 
-								let linkedContentItem = await expandContent({ contentItem: thisItem, languageCode, pageID, depth: newDepth });
+								let linkedContentItem = await expandContent({ contentItem: thisItem, languageCode, pageID, depth: newDepth, maxDepth: 1 });
 								if (linkedContentItem != null) {
 									lst.push(linkedContentItem);
 								}
@@ -265,8 +292,17 @@ class PageResolver {
 
 
 
+	/**
+	 * Add a dependancy for this content item onto the current page.
+	 * @param {*} { pageID, contentID, languageCode }
+	 * @memberof ContentResolver
+	 */
 	async addAgilityPageDependency({ pageID, contentID, languageCode }) {
 
+
+		//TODO: track the dependency for the parent content item as well
+
+		if (pageID < 1) return;
 
 		//track the dependency in GraphQL
 		const depNodeID = this.createNodeId(`agility-dep-${contentID}-${languageCode}`);
@@ -347,14 +383,18 @@ class PageResolver {
 		return nodes;
 
 	}
-
+*/
 	async queryContentItem({ contentID, languageCode }) {
-
 
 		const nodeID = this.createNodeId(`agilitycontent-${contentID}-${languageCode}`);
 
 		const contentNode = await this.getNode(nodeID);
-		return contentNode;
+
+		if (!contentNode || !contentNode.internal || !contentNode.internal.content) return null;
+
+		const item = JSON.parse(contentNode.internal.content);
+
+		return item;
 
 		// const result = await graphql(`
 		//   query ContentItemQuery {
@@ -374,11 +414,11 @@ class PageResolver {
 
 		// return result.data;
 	}
-*/
+
 
 }
 
 
 module.exports = {
-	PageResolver
+	ContentResolver
 }
