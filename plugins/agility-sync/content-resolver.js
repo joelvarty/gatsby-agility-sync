@@ -155,22 +155,21 @@ class ContentResolver {
 	   * @param {*} { contentID, languageCode, pageID, depth }
 	   * @returns
 	   */
-	async expandContentByID({ contentID, languageCode, pageID, depth, maxDepth }) {
+	async expandContentByID({ contentID, languageCode, pageID, depth, maxDepth, linkedItemExists }) {
 
 		if (!this.contentByID[languageCode]) return null;
 
 		let item = this.contentByID[languageCode][contentID];
-		if (item == null) {
-			//if the item wasn't available in our cache, fall back on the GraphQL...
+		if (item == null && !linkedItemExists) {
+			//if the item wasn't available in our cache
+			//fall back on the GraphQL ONLY if we haven't resolved this item
 			item = await this.queryContentItem({ contentID, languageCode });
-
-			if (item == null) return null;
 
 			//since we pulled this from graphql, don't traverse it any deeper
 			maxDepth = 0;
 		}
 
-
+		if (item == null) return null;
 
 		if (!maxDepth) maxDepth = 3;
 
@@ -213,8 +212,10 @@ class ContentResolver {
 						let linkedContentID = parseInt(fieldValue.contentID);
 						if (isNaN(linkedContentID)) linkedContentID = parseInt(fieldValue.contentid);
 
+						const linkedItemExists = fieldValue.item != undefined && fieldValue.item != null;
+
 						//expand this content item...
-						const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth, maxDepth: 1 })
+						const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth, maxDepth: 1, linkedItemExists })
 						if (linkedContentItem != null) {
 							//attach it to the field value..
 							fieldValue.item = linkedContentItem;
@@ -226,17 +227,26 @@ class ContentResolver {
 					else if (fieldValue.sortids && fieldValue.sortids.split) {
 						//pull in the linked content by multiple ids
 
+						const existingItems = fieldValue.items || [];
+
 						const linkedContentItems = [];
 						const linkedContentIDs = fieldValue.sortids.split(',');
 
 						for (const i in linkedContentIDs) {
 							const linkedContentID = parseInt(linkedContentIDs[i]);
 							if (linkedContentID > 0) {
+
+								const existingItem = existingItems.find(c => c.contentID == linkedContentID);
+								const linkedItemExists = existingItem != null;
+
 								//expand this content item...
-								const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth, maxDepth: 1 })
+								const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth, maxDepth: 1, linkedItemExists })
 								if (linkedContentItem != null) {
 									//add it to the array
 									linkedContentItems.push(linkedContentItem);
+								} else if (existingItem != null) {
+									//fall back on the current item if we need to
+									linkedContentItems.push(existingItem);
 								}
 							}
 						}
@@ -248,13 +258,16 @@ class ContentResolver {
 					//*** pull in the linked content by reference name */
 					else if (fieldValue.referencename) {
 
-						const lst = await this.getContentItemsByRefName({ refName: fieldValue.referencename, languageCode });
-
+						let lst = await this.getContentItemsByRefName({ refName: fieldValue.referencename, languageCode });
+						const existingItems = fieldValue.items || [];
 						if (lst != null) {
 							await asyncForEach(lst, async (listItem) => {
 
 								const json = JSON.stringify(listItem);
 								const thisItem = JSON.parse(json);
+
+								const existingItem = existingItems.find(c => c.contentID == linkedContentID);
+								const linkedItemExists = existingItem != null;
 
 								//track the dependency for this node...
 								await addAgilityPageDependency({ pageID, contentID: thisItem.contentID, languageCode: languageCode });
@@ -265,9 +278,15 @@ class ContentResolver {
 								}
 
 							});
+						} else {
+							lst = [];
 						}
 
-						fieldValue.items = lst;
+						//merge this with the existing list...
+						let itemsToKeep = existingItems.filter(x => lst.indexOf(c => c.contentID == x.contentID) == -1);
+
+						//assign the new list to the field value
+						fieldValue.items = lst.concat(itemsToKeep);
 
 					}
 
