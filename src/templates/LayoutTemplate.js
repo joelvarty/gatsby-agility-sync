@@ -1,5 +1,5 @@
 import React from "react"
-import './Layout.css'
+import './LayoutTemplate.css'
 
 export default ({ children }) => {
 	return (

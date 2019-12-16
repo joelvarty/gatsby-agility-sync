@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { graphql } from "gatsby"
 import { Helmet } from "react-helmet"
 
-import Layout from "./Layout"
+import LayoutTemplate from "./LayoutTemplate"
 import PreviewBar from "../components/PreviewBar"
 
 //You need to pass-down the available modules to the app because they will be rendered dynamically
@@ -63,7 +63,7 @@ export default class AgilityPage extends Component {
         const PageTemplateComponentToRender = pageTemplates[pageTemplateName];
 
         return (
-            <Layout>
+            <LayoutTemplate>
                 <Helmet>
                     <meta charSet="utf-8" />
                     <title>{title} - Example Template</title>
@@ -77,7 +77,7 @@ export default class AgilityPage extends Component {
                 </main>
                 <GlobalFooter />
 
-            </Layout>
+            </LayoutTemplate>
         );
     }
 }
