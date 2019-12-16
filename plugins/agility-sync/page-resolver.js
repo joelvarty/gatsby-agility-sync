@@ -147,8 +147,6 @@ class PageResolver {
 	   */
 	async expandContentByID({ contentID, languageCode, pageID, depth }) {
 
-		logInfo(`Expand content - ${contentID} - ${languageCode}`);
-
 		if (!this.contentByID[languageCode]) return null;
 
 		let item = this.contentByID[languageCode][contentID];
@@ -187,7 +185,6 @@ class PageResolver {
 					//*** pull in the linked content by id */
 					if (fieldValue.contentID && parseInt(fieldValue.contentID) > 0) {
 						const linkedContentID = parseInt(fieldValue.contentID);
-						console.log(`Found content id ${linkedContentID} in field ${fieldName}`, fieldValue);
 
 						//expand this content item...
 						const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth })
@@ -201,7 +198,6 @@ class PageResolver {
 					//*** pull in the linked content by multiple ids */
 					else if (fieldValue.sortids && fieldValue.sortids.split) {
 						//pull in the linked content by multiple ids
-						console.log(`Found content ids ${fieldValue.sortids} in field ${fieldName}`, fieldValue);
 
 						const linkedContentItems = [];
 						const linkedContentIDs = fieldValue.sortids.split(',');
@@ -224,8 +220,6 @@ class PageResolver {
 
 					//*** pull in the linked content by reference name */
 					else if (fieldValue.referencename) {
-
-						console.log(`Found content ref ${fieldValue.referencename} in field ${fieldName}`, fieldValue);
 
 						const lst = await this.getContentItemsByRefName({ refName: fieldValue.referencename, languageCode });
 
