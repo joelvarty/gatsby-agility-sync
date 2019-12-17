@@ -560,14 +560,14 @@ exports.sourceNodes = async (args, configOptions) => {
     //loop all the languages...
     await asyncForEach(languages, async (language) => {
 
-      logInfo(`Start Sync Content - ${language} - ${JSON.stringify(syncState.items)} `);
+      logInfo(`Start Sync Content - ${language}`);
       syncState = await syncAllContentItems({ aglClient, language, syncState });
-      logSuccess(`Done Sync Content - ${language} - ${JSON.stringify(syncState.items)} `);
+      logSuccess(`Done Sync Content - ${language}`);
 
-      logInfo(`Start Sync Pages - ${language} - ${JSON.stringify(syncState.pages)} `);
+      logInfo(`Start Sync Pages - ${language}`);
       let pageSyncRet = await syncAllPages({ aglClient, language, syncState });
       syncState = pageSyncRet.syncState;
-      logSuccess(`Done Page Sync - ${language} - ${JSON.stringify(syncState.pages)} - pages changed - ${pageSyncRet.pagesChanged}`);
+      logSuccess(`Done Page Sync - ${language}`);
 
       //persist the state to the file system
       await saveSyncState({ syncState });
