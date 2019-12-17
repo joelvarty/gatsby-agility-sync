@@ -9,6 +9,11 @@
 gatsby develop
 ```
 
+### to refresh local build:
+```shell
+curl -X POST http://localhost:8000/__refresh
+```
+
 ### To clean out any cache
 ```shell
 gatsby clean

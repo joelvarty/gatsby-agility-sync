@@ -115,6 +115,8 @@ exports.sourceNodes = async (args, configOptions) => {
 
     if (ci.properties.state === 3) {
       //*****  handle deletes *****
+      //TODO: handle removing this item from any parent items...
+
       deleteNode({
         node: getNode(nodeID),
       });
