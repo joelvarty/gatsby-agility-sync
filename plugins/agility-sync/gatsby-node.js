@@ -19,9 +19,6 @@ exports.sourceNodes = async (args, configOptions) => {
   }
 
 
-  // Create nodes here, generally by downloading data
-  // from a remote API.
-
   const aglClient = agility.getApi({
     guid: configOptions.guid,
     apiKey: configOptions.apiKey,
@@ -33,7 +30,10 @@ exports.sourceNodes = async (args, configOptions) => {
   const languages = configOptions.languages;
   const channels = configOptions.channels;
 
-  // Source Sitemap + Pages ---------------------------------------------------------------------------
+  /**
+   * Source Sitemap + Pages ---
+   * @param {*} { language }
+   */
   const sourceSitemap = async ({ language }) => {
 
     const languageCode = language;
@@ -48,6 +48,7 @@ exports.sourceNodes = async (args, configOptions) => {
         logError(`Could not retrieve sitemap for ${channelName} (${languageCode}.`);
         return; //kickout
       }
+
 
       // Loop through each sitemapnode in sitemap
       await asyncForEach(Object.values(sitemapNodes), async (sitemapNode) => {
@@ -246,6 +247,7 @@ exports.sourceNodes = async (args, configOptions) => {
     const nodeID = createNodeId(`agilitypage-${languageCode}-${pageItem.pageID}`);
 
     if (pageItem.properties.state === 3) {
+
       //*****  handle deletes *****
       deleteNode({
         node: getNode(nodeID)
@@ -436,14 +438,35 @@ exports.sourceNodes = async (args, configOptions) => {
 
     let count = 0;
     await asyncForEach(nodes, async (node) => {
-      //only touch the Agility nodes
-      if (node.internal.type.indexOf("Agility") != -1) {
+      //only touch the Agility nodes that are NOT sitemap nodes
+      const nodeType = node.internal.type.toLowerCase();
+      if (nodeType.indexOf("agility") != -1
+        && nodeType.indexOf("agilitysitemap") === -1) {
         await touchNode({ nodeId: node.id });
         count++;
       }
     });
 
     logSuccess(`Touched ${count} nodes`);
+
+  }
+
+  const touchAllSitemapNodes = async () => {
+
+    let nodes = getNodes();
+
+    let count = 0;
+    await asyncForEach(nodes, async (node) => {
+      //only touch the Agility nodes that are NOT sitemap nodes
+      const nodeType = node.internal.type.toLowerCase();
+      if (nodeType.indexOf("agility") != -1
+        && nodeType.indexOf("agilitysitemap") != -1) {
+        await touchNode({ nodeId: node.id });
+        count++;
+      }
+    });
+
+    logSuccess(`Touched ${count} sitemap nodes`);
 
   }
 
@@ -567,6 +590,11 @@ exports.sourceNodes = async (args, configOptions) => {
       logInfo(`Start Sync Pages - ${language}`);
       let pageSyncRet = await syncAllPages({ aglClient, language, syncState });
       syncState = pageSyncRet.syncState;
+      if (!pageSyncRet.pagesChanged) {
+        //if we haven't changed any pages, mark all the sitemap nodes as "touched"
+        await touchAllSitemapNodes();
+      }
+
       logSuccess(`Done Page Sync - ${language}`);
 
       //persist the state to the file system
