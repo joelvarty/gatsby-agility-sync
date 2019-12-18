@@ -31,6 +31,17 @@ gatbsy build
 netlify deploy --dir=public --open
 ```
 
+### Run in Docker
+```shell
+docker build -f Dockerfile.dev -t agility-gatsby-dev .
 
-
-
+docker run -p 80:80 --name agility-gatsby-dev agility-gatsby-dev
+#{OR}
+docker-compose up --build
+```
+### Publish to Docker Container Registry
+```shell
+docker build -f Dockerfile.dev -t {containerRegistryUrl}/agility-gatsby-dev .
+docker login -u {username} -p {password} {containerRegistryUrl}
+docker push {containerRegistryUrl}/agility-gatsby-dev
+```
