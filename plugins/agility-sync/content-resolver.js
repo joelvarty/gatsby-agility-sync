@@ -65,35 +65,16 @@ class ContentResolver {
 					let contentID = module.item.contentID;
 					if (!contentID) contentID = module.item.contentid;
 
-					const contentItem = await this.expandContentByID({ contentID, languageCode, pageID, depth: 0 });
+					const contentItem = await this.expandContentByID({ contentID, languageCode, pageID, parentContentID: -1, depth: 0 });
 					if (contentItem != null) {
 						//add this module's content item into the zone
 						module.item = contentItem;
 					}
-					//newZone.push(module);
 
 				});
-				//newZones[zoneName] = newZone;
+
 			}
 		}
-
-		// await asyncForEach(page.zones, async (zone) => {
-		// 	let newZone = [];
-		// 	await asyncForEach(zone.modules, async (module) => {
-		// 		const contentItem = await expandContentByID({ contentID: module.item.contentid, languageCode: languageCode, path: pagePath, depth: 0 });
-		// 		if (contentItem != null) {
-		// 			//add this module's content item into the zone
-		// 			newZone.push(contentItem);
-		// 		}
-
-		// 	});
-		// 	newZones[zone.name] = newZone;
-		// });
-
-		//page.zones = newZones;
-
-		//grab the dynamic item if we can
-
 
 		return page;
 
@@ -155,7 +136,7 @@ class ContentResolver {
 	   * @param {*} { contentID, languageCode, pageID, depth }
 	   * @returns
 	   */
-	async expandContentByID({ contentID, languageCode, pageID, depth, maxDepth, linkedItemExists }) {
+	async expandContentByID({ contentID, languageCode, pageID, parentContentID, depth, maxDepth, linkedItemExists }) {
 
 		if (!this.contentByID[languageCode]) return null;
 
@@ -180,9 +161,10 @@ class ContentResolver {
 
 
 		//track the dependency for this node...
-		await this.addAgilityPageDependency({ pageID, contentID: contentID, languageCode: languageCode });
+		await this.addAgilityPageDependency({ pageID, contentID, languageCode });
+		await this.addAgilityContentDependency({ parentContentID, contentID, languageCode })
 
-		return await this.expandContent({ contentItem: item, languageCode, pageID, depth, maxDepth });
+		return await this.expandContent({ contentItem: item, languageCode, pageID, parentContentID, depth, maxDepth });
 
 	}
 
@@ -191,9 +173,11 @@ class ContentResolver {
 	 * @param {*} { item, languageCode, pageID, depth }
 	 * @returns The expanded content item.
 	 */
-	async expandContent({ contentItem, languageCode, pageID, depth, maxDepth }) {
+	async expandContent({ contentItem, languageCode, pageID, parentContentID, depth, maxDepth }) {
 
 		if (!maxDepth) maxDepth = 3;
+
+		const contentID = contentItem.contentID;
 
 		//only traverse as deep as we are supposed to...
 		if (depth < maxDepth) {
@@ -215,7 +199,15 @@ class ContentResolver {
 						const linkedItemExists = fieldValue.item != undefined && fieldValue.item != null;
 
 						//expand this content item...
-						const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth, maxDepth: 1, linkedItemExists })
+						const linkedContentItem = await this.expandContentByID({
+							contentID: linkedContentID,
+							languageCode,
+							pageID,
+							parentContentID: contentID,
+							depth: newDepth,
+							maxDepth: 1,
+							linkedItemExists
+						})
 						if (linkedContentItem != null) {
 							//attach it to the field value..
 							fieldValue.item = linkedContentItem;
@@ -240,7 +232,15 @@ class ContentResolver {
 								const linkedItemExists = existingItem != null;
 
 								//expand this content item...
-								const linkedContentItem = await this.expandContentByID({ contentID: linkedContentID, languageCode, pageID, depth: newDepth, maxDepth: 1, linkedItemExists })
+								const linkedContentItem = await this.expandContentByID({
+									contentID: linkedContentID,
+									languageCode,
+									pageID,
+									parentContentID: contentID,
+									depth: newDepth,
+									maxDepth: 1,
+									linkedItemExists
+								})
 								if (linkedContentItem != null) {
 									//add it to the array
 									linkedContentItems.push(linkedContentItem);
@@ -270,9 +270,17 @@ class ContentResolver {
 								const linkedItemExists = existingItem != null;
 
 								//track the dependency for this node...
-								await addAgilityPageDependency({ pageID, contentID: thisItem.contentID, languageCode: languageCode });
+								await addAgilityPageDependency({ pageID, contentID: thisItem.contentID, languageCode });
+								await addAgilityContentDependency({ parentContentID: contentID, contentID: thisItem.contentID, languageCode });
 
-								let linkedContentItem = await expandContent({ contentItem: thisItem, languageCode, pageID, depth: newDepth, maxDepth: 1 });
+								let linkedContentItem = await expandContent({
+									contentItem: thisItem,
+									languageCode,
+									pageID,
+									parentContentID: contentID,
+									depth: newDepth,
+									maxDepth: 1
+								});
 								if (linkedContentItem != null) {
 									lst.push(linkedContentItem);
 								}
@@ -300,7 +308,7 @@ class ContentResolver {
 	}
 
 	async getDependantPageIDs({ contentID, languageCode }) {
-		const depNodeID = this.createNodeId(`agility-dep-${contentID}-${languageCode}`);
+		const depNodeID = this.createNodeId(`agility-page-dep-${contentID}-${languageCode}`);
 		let depNode = await this.getNode(depNodeID);
 		if (depNode != null) {
 			return depNode.pageIDs;
@@ -309,7 +317,15 @@ class ContentResolver {
 		return [];
 	}
 
+	async getDependantContentIDs({ contentID, languageCode }) {
+		const depNodeID = this.createNodeId(`agility-content-dep-${contentID}-${languageCode}`);
+		let depNode = await this.getNode(depNodeID);
+		if (depNode != null) {
+			return depNode.parentContentIDs;
+		}
 
+		return [];
+	}
 
 	/**
 	 * Add a dependancy for this content item onto the current page.
@@ -318,13 +334,10 @@ class ContentResolver {
 	 */
 	async addAgilityPageDependency({ pageID, contentID, languageCode }) {
 
-
-		//TODO: track the dependency for the parent content item as well
-
 		if (pageID < 1) return;
 
 		//track the dependency in GraphQL
-		const depNodeID = this.createNodeId(`agility-dep-${contentID}-${languageCode}`);
+		const depNodeID = this.createNodeId(`agility-page-dep-${contentID}-${languageCode}`);
 		let depNode = await this.getNode(depNodeID);
 
 		let pageIDs = [pageID];
@@ -359,9 +372,65 @@ class ContentResolver {
 		await this.createNode(depNode);
 
 	}
+	/**
+	 * Track the content dependency
+	 *
+	 * @param {*} { parentContentID, contentID, languageCode }
+	 * @returns
+	 * @memberof ContentResolver
+	 */
+	async addAgilityContentDependency({ parentContentID, contentID, languageCode }) {
 
-	async removeAgilityDependency({ contentID, languageCode }) {
-		const depNodeID = this.createNodeId(`agility-dep-${contentID}-${languageCode}`);
+		if (parentContentID < 1) return;
+
+
+		//track the dependency in GraphQL
+		const depNodeID = this.createNodeId(`agility-content-dep-${contentID}-${languageCode}`);
+		let depNode = await this.getNode(depNodeID);
+
+		let parentContentIDs = [parentContentID];
+
+		if (depNode != null) {
+			if (depNode.parentContentIDs.indexOf(parentContentID) != -1) {
+				//we already have a dependancy here, kick out
+				return;
+			}
+			depNode.parentContentIDs.push(parentContentID)
+			parentContentIDs = depNode.parentContentIDs;
+		}
+
+		const obj = {
+			contentID: contentID,
+			languageCode: languageCode,
+			parentContentIDs: parentContentIDs
+		};
+
+		const nodeMeta = {
+			id: depNodeID,
+			parent: null,
+			children: [],
+			internal: {
+				type: `AgilityContentDependency`,
+				content: "",
+				contentDigest: this.createContentDigest(obj)
+			}
+		}
+		depNode = Object.assign({}, obj, nodeMeta);
+
+		await this.createNode(depNode);
+
+	}
+
+	async removeAgilityPageDependency({ contentID, languageCode }) {
+		const depNodeID = this.createNodeId(`agility-page-dep-${contentID}-${languageCode}`);
+
+		await this.deleteNode({
+			node: this.getNode(depNodeID),
+		});
+	}
+
+	async removeAgilityContentDependency({ contentID, languageCode }) {
+		const depNodeID = this.createNodeId(`agility-content-dep-${contentID}-${languageCode}`);
 
 		await this.deleteNode({
 			node: this.getNode(depNodeID),
