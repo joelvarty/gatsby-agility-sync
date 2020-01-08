@@ -22,7 +22,7 @@ gatsby clean
 ### To build for production
 ```shell
 NODE_ENV=production
-gatbsy build
+gatsby build
 
 ```
 

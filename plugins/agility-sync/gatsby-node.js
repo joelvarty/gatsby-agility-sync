@@ -111,7 +111,7 @@ exports.sourceNodes = async (args, configOptions) => {
 	 */
 	const processContentItemNode = async (ci, languageCode) => {
 
-		const nodeID = createNodeId(`agilitycontent-${ci.contentID}-${languageCode}`);
+		const nodeID = getContentNodeID(ci.contentID, languageCode);
 		const nodeIDRefName = createNodeId(`agilitycontentref-${ci.contentID}-${languageCode}`);
 
 		if (ci.properties.state === 3) {
@@ -181,6 +181,10 @@ exports.sourceNodes = async (args, configOptions) => {
 
 	}
 
+	const getContentNodeID = (contentID, languageCode) => {
+		return createNodeId(`agilitycontent-${contentID}-${languageCode}`);
+	}
+
 	const processContentItem = async (ci) => {
 
 		const languageCode = ci.languageCode;
@@ -192,7 +196,7 @@ exports.sourceNodes = async (args, configOptions) => {
 		contentResolver.addContentByRefName({ content: ci });
 
 		//generate the node ids for graphql
-		const nodeID = createNodeId(`agilitycontent-${ci.contentID}-${languageCode}`);
+		const nodeID = getContentNodeID(ci.contentID, languageCode);
 		const nodeIDRefName = createNodeId(`agilitycontentref-${ci.contentID}-${languageCode}`);
 
 		const nodeContent = JSON.stringify(ci);
@@ -239,15 +243,22 @@ exports.sourceNodes = async (args, configOptions) => {
 
 
 	const processDependantContentID = async (contentID, languageCode) => {
-		const nodeID = createNodeId(`agilitycontent-${languageCode}-${contentID}`);
+
+
+
+
+		const nodeID = getContentNodeID(contentID, languageCode);
 		const contentNode = getNode(nodeID);
 		if (contentNode == null) return;
 
 		const json = contentNode.internal.content;
 		const contentItem = JSON.parse(json);
 
+		// Add-in languageCode for this item so we can filter it by lang later
+		contentItem.languageCode = languageCode;
+
 		//stash this item for lookup later...
-		contentResolver.addContentByID(contentItem);
+		contentResolver.addContentByID({ content: contentItem });
 
 		//TODO: if there are more dependant ids uncovered here, process them recursively...
 		const { thesePageIDs, theseParentContentIDs } = await processContentItem(contentItem);
@@ -313,13 +324,14 @@ exports.sourceNodes = async (args, configOptions) => {
 				children: [],
 				pageID: pageItem.pageID,
 				languageCode: languageCode,
+				pageJson: nodeContent,
 				internal: {
 					type: `AgilityPage`,
 					content: nodeContent,
 					contentDigest: createContentDigest(pageItem)
 				}
 			}
-			//const node = Object.assign({}, pageItem, nodeMeta);
+
 
 			await createNode(nodeMeta);
 
@@ -380,6 +392,9 @@ exports.sourceNodes = async (args, configOptions) => {
 			//process all the newly synced items...
 			const { depPageIDs, depContentIDs } = await processNewlySyncedItems();
 
+			console.log("Dep Content:", depContentIDs)
+			console.log("Dep Pages:", depPageIDs)
+
 			//keep track of any pages we need to reprocess
 			syncState.dependantPageIDs = depPageIDs;
 
@@ -408,7 +423,10 @@ exports.sourceNodes = async (args, configOptions) => {
 			let ticks = 0;
 			if (syncState && syncState.pages[language]) {
 				ticks = syncState.pages[language].ticks;
+
 			}
+
+			let sitemapSourced = false;
 
 			do {
 				//sync content items...
@@ -425,8 +443,12 @@ exports.sourceNodes = async (args, configOptions) => {
 					break;
 				}
 
-				//we've synced at least 1 page - source sitemap...
-				await sourceSitemap({ language });
+				if (!sitemapSourced) {
+					sitemapSourced = true;
+					//we've synced at least 1 page - source sitemap...
+					await sourceSitemap({ language });
+
+				}
 
 				pagesChanged = true;
 
@@ -577,30 +599,6 @@ exports.sourceNodes = async (args, configOptions) => {
 		const syncNode = await getNode("agilitysyncstate");
 		return syncNode;
 
-		// const p = new Promise((resolve, reject) => {
-		//   try {
-		//     fs.stat(stateFilePath, (err, stats) => {
-		//       if (stats) {
-		//         fs.readFile(stateFilePath, (err2, data) => {
-		//           if (data) {
-		//             let obj = JSON.parse(data);
-		//             resolve(obj);
-		//           } else {
-		//             resolve(null);
-		//           }
-		//         });
-		//       } else {
-		//         resolve(null);
-		//       }
-		//     });
-		//   } catch (err3) {
-		//     console.error("Error occurred reading sync file", err3);
-		//     resolve(null);
-		//   }
-
-		// });
-
-		// return p;
 
 	}
 
@@ -651,8 +649,7 @@ exports.sourceNodes = async (args, configOptions) => {
 
 	};
 
-
-	await doTheWork();
+	return doTheWork();
 
 }
 
@@ -813,7 +810,7 @@ exports.createPages = async (args, configOptions) => {
 	let isHomePage = true;
 
 	//loop all nodes we returned...
-	await asyncForEach(sitemapNodes.allAgilitySitemap.nodes, async (sitemapNode) => {
+	return asyncForEach(sitemapNodes.allAgilitySitemap.nodes, async (sitemapNode) => {
 		await createAgilityPage(sitemapNode, isHomePage);
 		isHomePage = false;
 	});
@@ -830,10 +827,62 @@ exports.createPages = async (args, configOptions) => {
 	//   logSuccess(`Redirect created for default language path from / to ${defaultLanguage.path} `)
 	// }
 
-	logInfo(`Pages created.`)
-
 }
 
+
+exports.createResolvers = (args) => {
+
+	return;
+
+	// const { createResolvers, getNode, createNodeId, createNode, createContentDigest } = args;
+
+	// const contentResolver = new ContentResolver({ getNode, createNodeId, createNode, createContentDigest });
+
+
+	// const resolvers = {
+
+	// 	AgilityPage: {
+
+	// 		pageJson: {
+	// 			resolve: async (source, args, context, info) => {
+
+	// 				const page = JSON.parse(source.pageJson);
+	// 				console.log("r1", page)
+	// 				for (const zoneName in page.zones) {
+	// 					if (page.zones.hasOwnProperty(zoneName)) {
+	// 						const zone = page.zones[zoneName];
+	// 						let newZone = [];
+	// 						await asyncForEach(zone, async (module) => {
+	// 							console.log("expanding", zoneName, zone);
+	// 							let contentID = module.item.contentID;
+	// 							if (!contentID) contentID = module.item.contentid;
+
+	// 							const contentItem = await contentResolver.expandContentByID({
+	// 								contentID,
+	// 								languageCode: page.languageCode,
+	// 								pageID: page.pageID,
+	// 								parentContentID: -1,
+	// 								depth: 0
+	// 							});
+	// 							if (contentItem != null) {
+	// 								//add this module's content item into the zone
+	// 								module.item = contentItem;
+	// 							}
+
+	// 						});
+
+	// 					}
+	// 				}
+
+	// 				console.log("r2", page)
+	// 				return JSON.stringify(page);
+
+	// 			}
+	// 		},
+	// 	},
+	// }
+	// createResolvers(resolvers)
+}
 
 
 

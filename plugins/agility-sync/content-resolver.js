@@ -155,6 +155,7 @@ class ContentResolver {
 		if (!maxDepth) maxDepth = 3;
 
 		//convert the object to JSON and back to avoid circular references...
+		//THIS IS LAME- SOMEONE PLEASE FIX
 		const json = JSON.stringify(item);
 		item = JSON.parse(json);
 
@@ -443,35 +444,6 @@ class ContentResolver {
 		return this.contentByRefName[languageCode][refName];
 	}
 
-	/*
-	async queryContentList({ referenceName, languageCode }) {
-
-
-
-		const result = await graphql(`
-		  query ContentItemQuery {
-
-		    allAgilityContent(
-		      filter: {properties: {referenceName: {eq: "${referenceName}"}}, languageCode: {eq: "${languageCode}"}}) {
-		      nodes {
-		        id
-		        internal {
-		          content
-		        }
-		      }
-		    }
-		  }`);
-
-		if (result.errors) {
-			throw result.errors
-		}
-
-		const nodes = result.data.allAgilityContent.nodes;
-
-		return nodes;
-
-	}
-*/
 	async queryContentItem({ contentID, languageCode }) {
 
 		const nodeID = this.createNodeId(`agilitycontent-${contentID}-${languageCode}`);
@@ -484,23 +456,6 @@ class ContentResolver {
 
 		return item;
 
-		// const result = await graphql(`
-		//   query ContentItemQuery {
-		//     agilityContent(contentID: {eq: ${contentID}}, languageCode: {eq: "${languageCode}"}) {
-		//       id
-		//       internal {
-		//         content
-		//       }
-		//     }
-		//   }`);
-
-		// if (result.errors) {
-		// 	throw result.errors
-		// }
-
-
-
-		// return result.data;
 	}
 
 
