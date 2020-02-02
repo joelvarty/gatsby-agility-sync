@@ -7,17 +7,16 @@ export default props => (
 	<StaticQuery
 		query={graphql`
         query GlobalFooterQuery {
-            agilityContent(properties: {referenceName: {eq: "globalfooter"}}) {
+            agilityGlobalFooter(properties: {referenceName: {eq: "globalfooter"}}) {
                 agilityFields {
                 footerText
                 }
             }
-
           }
         `}
 		render={queryData => {
 			const viewModel = {
-				item: queryData.agilityContent
+				item: queryData.agilityGlobalFooter
 			}
 			return (
 				<GlobalFooter {...viewModel} />
@@ -28,7 +27,7 @@ export default props => (
 
 class GlobalFooter extends Component {
 	renderFooter = () => {
-
+		console.log("footer", this.props)
 		if (this.props.item.agilityFields.footerText) {
 			return <div dangerouslySetInnerHTML={{ __html: this.props.item.agilityFields.footerText }}></div>
 		}

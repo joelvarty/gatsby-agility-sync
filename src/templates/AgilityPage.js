@@ -14,20 +14,15 @@ import GlobalFooter from '../components/GlobalFooter'
 
 export const query = graphql`
   query($pageID: Int!, $contentID: Int!, $languageCode: String!) {
-    agilityPage(pageID: {eq: $pageID}, languageCode: {eq: $languageCode}) {
-        id
-        internal {
-        	content
-        }
-    }
-    agilityContent(contentID: {eq: $contentID}, languageCode: {eq: $languageCode}) {
-		id
-		internal {
-        	content
-        }
+
+    agilitypage(languageCode: { eq: $languageCode }, itemID: { eq: $pageID }) {
+		pageJson
+	}
+    agilityitem(languageCode: {eq: $languageCode}, itemID: {eq: $contentID}) {
+		itemJson
     }
 }
-  `
+`
 
 export default class AgilityPage extends Component {
 
@@ -35,17 +30,16 @@ export default class AgilityPage extends Component {
 
 		const contentID = this.props.pageContext.contentID;
 
-		const pageJSON = this.props.data.agilityPage.internal.content;
+		const pageJSON = this.props.data.agilitypage.pageJson;
 		const page = JSON.parse(pageJSON);
 		const title = this.props.pageContext.title;
 		const isPreview = this.props.pageContext.isPreview;
 
-
-
 		let dynamicPageItem = null;
+
 		if (contentID > 0) {
-			if (this.props.data.agilityContent && this.props.data.agilityContent.internal.content) {
-				const contentJSON = this.props.data.agilityContent.internal.content;
+			if (this.props.data.agilityitem && this.props.data.agilityitem.itemJson) {
+				const contentJSON = this.props.data.agilityitem.itemJson;
 				dynamicPageItem = JSON.parse(contentJSON);
 
 			}

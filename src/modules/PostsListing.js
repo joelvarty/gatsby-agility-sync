@@ -7,7 +7,7 @@ export default props => (
 	<StaticQuery
 		query={graphql`
         query PostListingModuleQuery {
-            allAgilityContent(
+            allAgilityPost(
               filter: {
                 properties: { referenceName: { eq: "posts"}}
               },
@@ -22,27 +22,14 @@ export default props => (
                     image {
                         url
                     }
-                    category {
-                        item {
-                            agilityFields {
-                                title
-                            }
-                        }
-                    }
-                    author {
-                        item {
-                            agilityFields {
-                                name
-                            }
-                        }
-                    }
+
                 }
                     properties {
                         referenceName
                     }
                 }
             }
-            allAgilitySitemap (
+            allAgilitySitemapNode (
               filter: {
                 contentID: {ne: -1}
               }
@@ -59,10 +46,10 @@ export default props => (
 			let posts = [];
 
 			//get the dynamic URLs for each post
-			queryData.allAgilityContent.nodes.forEach(post => {
+			queryData.allAgilityPost.nodes.forEach(post => {
 
 
-				const sitemapNodeForPost = queryData.allAgilitySitemap.nodes.find(sitemapNode => {
+				const sitemapNodeForPost = queryData.allAgilitySitemapNode.nodes.find(sitemapNode => {
 					return post.contentID === sitemapNode.contentID;
 				})
 
@@ -84,6 +71,23 @@ export default props => (
 )
 
 
+/*
+ category {
+	item {
+		agilityFields {
+			title
+		}
+	}
+}
+author {
+	item {
+		agilityFields {
+			name
+		}
+	}
+}
+*/
+
 class PostsListing extends Component {
 	renderPostExcerpt(html) {
 		const excerpt = truncate(html, { stripTags: true, length: 160 });
@@ -103,7 +107,7 @@ class PostsListing extends Component {
 							<h2>
 								{post.agilityFields.title}
 							</h2>
-							<div>{post.agilityFields.author.item.agilityFields.name} | {post.agilityFields.category.item.agilityFields.title}</div>
+							{/* <div>{post.agilityFields.author.item.agilityFields.name} | {post.agilityFields.category.item.agilityFields.title}</div> */}
 							<p dangerouslySetInnerHTML={this.renderPostExcerpt(post.agilityFields.details)}></p>
 						</Link>
 					</div>
@@ -120,7 +124,7 @@ class PostsListing extends Component {
 
 			< section className="posts-listing" >
 				<div className="container">
-					<h1>{this.props.item.agilityFields.title}</h1>
+					<h1>{this.props.item.fields.title}</h1>
 					<div className="posts-listing-container">
 						{this.renderPosts()}
 					</div>
