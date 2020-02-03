@@ -27,7 +27,7 @@ export default props => (
 
 class GlobalFooter extends Component {
 	renderFooter = () => {
-		console.log("footer", this.props)
+
 		if (this.props.item.agilityFields.footerText) {
 			return <div dangerouslySetInnerHTML={{ __html: this.props.item.agilityFields.footerText }}></div>
 		}
