@@ -59,7 +59,7 @@ typings/
 .env.production
 .env.development
 
-# next.js build output
+# build outputs
 .next
 
 .cache
