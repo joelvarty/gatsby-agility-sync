@@ -20,20 +20,51 @@ const setLocalStorageAccess = (newLocalStorageAccess) => {
 }
 
 const saveContentItem = async ({ contentItem, languageCode }) => {
-	await localStorageAccess.saveItem({ item: contentItem, itemType: "item", languageCode, itemID: contentItem.contentID });
 
-	const referenceName = contentItem.properties.referenceName;
 
-	if (!referenceName) {
-		logWarning(`Content ID ${contentItem.contentID} in language ${languageCode} did not have a reference name.`);
+	if (!contentItem || !contentItem.properties) {
+		logWarning('Null item or item with no properties cannot be saved');
+		return;
+	}
+
+	let referenceName = contentItem.properties.referenceName;
+	let definitionName = contentItem.properties.definitionName;
+
+
+	if (contentItem.properties.state === 3) {
+		//if the item is deleted
+
+		//grab the reference name from the currently saved item...
+		const currentItem = await localStorageAccess.getItem({ itemType: "item", languageCode, itemID: contentItem.contentID });
+		if (currentItem) {
+
+			referenceName = currentItem.properties.referenceName;
+			definitionName = currentItem.properties.definitionName;
+
+			await localStorageAccess.deleteItem({ itemType: "item", languageCode, itemID: contentItem.contentID });
+		}
+
+
 	} else {
+		//regular item
+		await localStorageAccess.saveItem({ item: contentItem, itemType: "item", languageCode, itemID: contentItem.contentID });
+	}
+
+	if (referenceName) {
 		//save the item by reference name - it might need to be merged into a list
-		await localStorageAccess.mergeItemToList({ item: contentItem, languageCode, itemID: contentItem.contentID, referenceName });
+		await localStorageAccess.mergeItemToList({ item: contentItem, languageCode, itemID: contentItem.contentID, referenceName, definitionName });
 	}
 }
 
 const savePageItem = async ({ pageItem, languageCode }) => {
-	await localStorageAccess.saveItem({ item: pageItem, itemType: "page", languageCode, itemID: pageItem.pageID });
+
+	if (pageItem.properties.state === 3) {
+		//item is deleted
+		await localStorageAccess.deleteItem({ itemType: "page", languageCode, itemID: pageItem.pageID });
+	} else {
+		//regular item
+		await localStorageAccess.saveItem({ item: pageItem, itemType: "page", languageCode, itemID: pageItem.pageID });
+	}
 }
 
 const saveSitemap = async ({ sitemap, channelName, languageCode }) => {

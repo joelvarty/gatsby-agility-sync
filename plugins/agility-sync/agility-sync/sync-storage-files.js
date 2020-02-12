@@ -29,7 +29,17 @@ const saveItem = async ({ item, itemType, languageCode, itemID }) => {
 	fs.writeFileSync(filePath, json);
 }
 
-const mergeItemToList = async ({ item, languageCode, itemID, referenceName }) => {
+const deleteItem = async ({ itemType, languageCode, itemID }) => {
+
+	let filePath = getFilePath({ itemType, languageCode, itemID });
+
+	if (fs.existsSync(filePath)) {
+		fs.unlinkSync(filePath);
+	}
+
+}
+
+const mergeItemToList = async ({ item, languageCode, itemID, referenceName, definitionName }) => {
 
 	let contentList = await getItem({ itemType: "list", languageCode, itemID: referenceName });
 
@@ -42,12 +52,22 @@ const mergeItemToList = async ({ item, languageCode, itemID, referenceName }) =>
 			return ci.contentID === itemID;
 		});
 
-		if (cIndex >= 0) {
-			//merge into the list
-			contentList[cIndex] = item;
+		if (item.properties.state === 3) {
+			//*** deleted item (remove from the list) ***
+			if (cIndex >= 0) {
+				//remove the item
+				contentList.splice(cIndex, 1);
+			}
+
 		} else {
-			//and it to the end of the
-			contentList.push(item);
+			//*** regular item (merge) ***
+			if (cIndex >= 0) {
+				//replace the existing item
+				contentList[cIndex] = item;
+			} else {
+				//and it to the end of the
+				contentList.push(item);
+			}
 		}
 	}
 
@@ -70,6 +90,7 @@ const clearItems = async () => {
 
 module.exports = {
 	saveItem: saveItem,
+	deleteItem: deleteItem,
 	getItem: getItem,
 	clearItems: clearItems,
 	mergeItemToList: mergeItemToList

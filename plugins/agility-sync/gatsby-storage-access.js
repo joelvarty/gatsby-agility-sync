@@ -71,12 +71,28 @@ class GatsbyStorageAccess {
 		await this.createNode(nodeToCreate);
 	}
 
-	async mergeItemToList({ item, languageCode, itemID, referenceName }) {
+	async deleteItem({ itemType, languageCode, itemID }) {
+
+		const nodeID = this.getNodeID({ itemType, languageCode, itemID });
+		const node = this.getNode(nodeID);
+
+		if (node) {
+			this.deleteNode({ node: node });
+		}
+	}
+
+	async mergeItemToList({ item, languageCode, itemID, referenceName, definitionName }) {
 
 		//save the item in a list based on the content definition name...
-		const definitionName = item.properties.definitionName;
+		if (item.properties.state === 3) {
+			//handle deletes
 
-		await this.saveItem({ item: item, itemType: definitionName, languageCode, itemID });
+			await this.deleteItem({ itemType: definitionName, languageCode, itemID });
+
+		} else {
+			//save the item in the list
+			await this.saveItem({ item: item, itemType: definitionName, languageCode, itemID });
+		}
 
 	}
 

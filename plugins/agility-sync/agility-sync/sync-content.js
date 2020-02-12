@@ -22,7 +22,11 @@ const syncContent = async (agilityClient, languageCode, token) => {
 	if (!token) token = 0;
 
 	do {
+
 		//sync content items...
+		logInfo(`Pulling Content Changes - ${token}`);
+
+
 		const syncRet = await agilityClient.getSyncContent({
 			syncToken: token,
 			pageSize: 100,
@@ -34,6 +38,7 @@ const syncContent = async (agilityClient, languageCode, token) => {
 
 		//if we don't get anything back, kick out
 		if (syncItems.length === 0) {
+			logInfo(`Content Sync returned no item(s).`);
 			break;
 		}
 
@@ -52,7 +57,9 @@ const syncPages = async (agilityClient, languageCode, token) => {
 	if (!token) token = 0;
 
 	do {
-		//sync content items...
+		//sync pages...
+		logInfo(`Pulling Page Changes - ${token}`);
+
 		const syncRet = await agilityClient.getSyncPages({
 			syncToken: token,
 			pageSize: 100,
@@ -63,6 +70,7 @@ const syncPages = async (agilityClient, languageCode, token) => {
 
 		//if we don't get anything back, kick out
 		if (syncItems.length === 0) {
+			logInfo(`Page Sync returned no item(s).`);
 			break;
 		}
 
@@ -116,13 +124,6 @@ const runSync = async (storageAccess) => {
 
 		logSuccess(`Completed Sync for ${languageCode}`);
 
-
-		//HACK
-		// const pageItem = await localAgilityAccess.getPageItem({ pageID: 2, languageCode: "en-us", depth: 3 });
-		// console.log(JSON.stringify(pageItem.zones["MainContentZone"], null, 2));
-
-		// const postItem = await localAgilityAccess.getContentItem({ contentID: 41, languageCode: "en-us" });
-		// console.log(JSON.stringify(postItem, null, 2));
 	}
 
 }

@@ -13,7 +13,6 @@ exports.sourceNodes = async (args, configOptions) => {
 	const { actions, createNodeId, createContentDigest, getNode, getNodes, store, cache, reporter } = args;
 	const { createNode, deleteNode, deletePage, touchNode } = actions
 
-
 	const storageAccess = new GatsbyStorageAccess({ getNode, createNodeId, createNode, createContentDigest, deleteNode });
 
 
@@ -49,36 +48,41 @@ exports.sourceNodes = async (args, configOptions) => {
 
 
 	logInfo(`Creating sitemap nodes.`);
-	//TODO: determine the starting language properly...
-	let languageCode = "en-us";
-	let sitemap = await localAgilityAccess.getSitemap({ channelName: "website", languageCode });
+	//TODO: handle multi-channel and multi-language
+	let languageCode = agilityConfig.languageCodes;
+	let channelName = agilityConfig.channels;
+	let sitemap = await localAgilityAccess.getSitemap({ channelName, languageCode });
 
-	//create the sitemap nodes...
-	for (const pagePath in sitemap) {
+	if (!sitemap) {
+		logWarning(`Could not get the sitemap node(s) for channel ${channelName} in language ${languageCode}`)
+	} else {
 
-		const sitemapNode = sitemap[pagePath];
+		//create the sitemap nodes...
+		for (const pagePath in sitemap) {
 
-		const nodeID = createNodeId(`sitemap-${sitemapNode.pageID}-${sitemapNode.contentID}`);
+			const sitemapNode = sitemap[pagePath];
 
-		const nodeMeta = {
-			id: nodeID,
-			parent: null,
-			children: [],
-			languageCode: languageCode,
-			pagePath: pagePath,
-			internal: {
-				type: "agilitySitemapNode",
-				content: "",
-				contentDigest: createContentDigest(sitemapNode)
+			const nodeID = createNodeId(`sitemap-${sitemapNode.pageID}-${sitemapNode.contentID}`);
+
+			const nodeMeta = {
+				id: nodeID,
+				parent: null,
+				children: [],
+				languageCode: languageCode,
+				pagePath: pagePath,
+				internal: {
+					type: "agilitySitemapNode",
+					content: "",
+					contentDigest: createContentDigest(sitemapNode)
+				}
 			}
+
+			const nodeToCreate = Object.assign({}, sitemapNode, nodeMeta);
+
+			await createNode(nodeToCreate);
+
 		}
-
-		const nodeToCreate = Object.assign({}, sitemapNode, nodeMeta);
-
-		await createNode(nodeToCreate);
-
 	}
-
 	logInfo(`Source Nodes Completed.`);
 
 }
@@ -100,11 +104,12 @@ exports.createPages = async (args, configOptions) => {
 	// const storageAccess = new GatsbyStorageAccess({ getNode, createNodeId, createNode, createContentDigest });
 	// localAgilityAccess.setLocalStorageAccess(storageAccess);
 
-	//TODO: determine the starting language properly...
-	let languageCode = "en-us";
-	let sitemap = await localAgilityAccess.getSitemap({ channelName: "website", languageCode });
+	let languageCode = agilityConfig.languageCodes;
+	let channelName = agilityConfig.channels;
+	let sitemap = await localAgilityAccess.getSitemap({ channelName, languageCode });
+
 	if (sitemap == null) {
-		logWarning(`Could not get the sitemap node(s)`)
+		logWarning(`Could not get the sitemap node(s) for channel ${channelName} in language ${languageCode}`)
 		return;
 	}
 
