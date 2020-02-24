@@ -90,13 +90,18 @@ const getContentItem = async ({ contentID, languageCode, depth = 2 }) => {
 const expandContentItem = async ({ contentItem, languageCode, depth }) => {
 	if (depth > 0) {
 
-		for (const fieldName in contentItem.fields) {
-			const fieldValue = contentItem.fields[fieldName];
+		//make this work for the .fields or the .customFields property...
+		let fields = contentItem.fields;
+		if (!fields) fields = contentItem.customFields;
+
+
+		for (const fieldName in fields) {
+			const fieldValue = fields[fieldName];
 
 			if (fieldValue.contentid > 0) {
 				//single linked item
 				const childItem = await getContentItem({ contentID: fieldValue.contentid, languageCode, depth: depth - 1 });
-				if (childItem != null) contentItem.fields[fieldName] = childItem;
+				if (childItem != null) fields[fieldName] = childItem;
 			} else if (fieldValue.sortids && fieldValue.sortids.split) {
 				//multi linked item
 				const sortIDAry = fieldValue.sortids.split(',');
@@ -106,7 +111,7 @@ const expandContentItem = async ({ contentItem, languageCode, depth }) => {
 					if (childItem != null) childItems.push(childItem);
 				}
 
-				contentItem.fields[fieldName] = childItems;
+				fields[fieldName] = childItems;
 
 			}
 		}

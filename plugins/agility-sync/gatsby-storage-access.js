@@ -22,6 +22,13 @@ class GatsbyStorageAccess {
 		const nodeID = this.getNodeID({ itemType, languageCode, itemID });
 		let typeName = `agility${itemType}`;
 
+		//if the item has a .fields property, swap that with customFields to match
+		//with the graphQL version of the items.
+		if (item.fields) {
+			item.customFields = item.fields;
+			delete item.fields;
+		}
+
 		const jsonContent = JSON.stringify(item);
 		const nodeMeta = {
 			id: nodeID,
@@ -56,8 +63,7 @@ class GatsbyStorageAccess {
 			}
 			default: {
 				//a content list...
-				item.agilityFields = item.fields;
-				delete item.fields;
+
 
 				item.languageCode = languageCode;
 				item.itemID = itemID;

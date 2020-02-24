@@ -8,7 +8,7 @@ export default props => (
 		query={graphql`
         query GlobalFooterQuery {
             agilityGlobalFooter(properties: {referenceName: {eq: "globalfooter"}}) {
-                agilityFields {
+                customFields {
                 footerText
                 }
             }
@@ -28,8 +28,8 @@ export default props => (
 class GlobalFooter extends Component {
 	renderFooter = () => {
 
-		if (this.props.item.agilityFields.footerText) {
-			return <div dangerouslySetInnerHTML={{ __html: this.props.item.agilityFields.footerText }}></div>
+		if (this.props.item.customFields.footerText) {
+			return <div dangerouslySetInnerHTML={{ __html: this.props.item.customFields.footerText }}></div>
 		}
 	}
 	render() {

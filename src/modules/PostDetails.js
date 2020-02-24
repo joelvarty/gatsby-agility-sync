@@ -15,14 +15,14 @@ class PostDetails extends Component {
 			<section className="post-details">
 				<div className="container">
 					<div className="post">
-						<h1>{post.fields.title}</h1>
-						{post.fields.image &&
-							<img src={post.fields.image.url + '?w=860'} alt="" />
+						<h1>{post.customFields.title}</h1>
+						{post.customFields.image &&
+							<img src={post.customFields.image.url + '?w=860'} alt="" />
 						}
 
-						<div><span className="author">{post.fields.author.fields.name}</span> | {post.fields.category.fields.title}</div>
+						<div><span className="author">{post.customFields.author.customFields.name}</span> | {post.customFields.category.customFields.title}</div>
 						<hr />
-						<div className="post-content" dangerouslySetInnerHTML={this.renderPostContent(post.fields.details)}></div>
+						<div className="post-content" dangerouslySetInnerHTML={this.renderPostContent(post.customFields.details)}></div>
 					</div>
 				</div>
 			</section>

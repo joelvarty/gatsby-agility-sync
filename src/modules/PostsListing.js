@@ -16,7 +16,7 @@ export default props => (
               totalCount
               nodes {
                 contentID
-                agilityFields {
+                customFields {
                     title
                     details
                     image {
@@ -74,14 +74,14 @@ export default props => (
 /*
  category {
 	item {
-		agilityFields {
+		customFields {
 			title
 		}
 	}
 }
 author {
 	item {
-		agilityFields {
+		customFields {
 			name
 		}
 	}
@@ -101,14 +101,14 @@ class PostsListing extends Component {
 				posts.push(
 					<div className="post" key={post.contentID}>
 						<Link to={post.dynamicUrl}>
-							{post.agilityFields.image &&
-								<img src={post.agilityFields.image.url + '?w=480'} alt={post.agilityFields.image.label} />
+							{post.customFields.image &&
+								<img src={post.customFields.image.url + '?w=480'} alt={post.customFields.image.label} />
 							}
 							<h2>
-								{post.agilityFields.title}
+								{post.customFields.title}
 							</h2>
-							{/* <div>{post.agilityFields.author.item.agilityFields.name} | {post.agilityFields.category.item.agilityFields.title}</div> */}
-							<p dangerouslySetInnerHTML={this.renderPostExcerpt(post.agilityFields.details)}></p>
+							{/* <div>{post.customFields.author.item.customFields.name} | {post.customFields.category.item.customFields.title}</div> */}
+							<p dangerouslySetInnerHTML={this.renderPostExcerpt(post.customFields.details)}></p>
 						</Link>
 					</div>
 				)
@@ -124,7 +124,7 @@ class PostsListing extends Component {
 
 			< section className="posts-listing" >
 				<div className="container">
-					<h1>{this.props.item.fields.title}</h1>
+					<h1>{this.props.item.customFields.title}</h1>
 					<div className="posts-listing-container">
 						{this.renderPosts()}
 					</div>

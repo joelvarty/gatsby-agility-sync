@@ -21,7 +21,7 @@ export default props => (
         `}
 		render={queryData => {
 
-			let posts = props.item.fields.posts;
+			let posts = props.item.customFields.posts;
 
 			//get the dynamic URLs for each post
 			posts.forEach(post => {
@@ -55,14 +55,14 @@ class FeaturedPosts extends Component {
 				posts.push(
 					<div className="post" key={post.contentID}>
 						<Link to={post.dynamicUrl}>
-							{post.fields.image &&
-								<img src={post.fields.image.url + '?w=480'} alt={post.fields.image.label} />
+							{post.customFields.image &&
+								<img src={post.customFields.image.url + '?w=480'} alt={post.customFields.image.label} />
 							}
 							<h2>
-								{post.fields.title}
+								{post.customFields.title}
 							</h2>
-							<div>{post.fields.author.fields.name} | {post.fields.category.fields.title}</div>
-							<p dangerouslySetInnerHTML={this.renderPostExcerpt(post.fields.details)}></p>
+							<div>{post.customFields.author.customFields.name} | {post.customFields.category.customFields.title}</div>
+							<p dangerouslySetInnerHTML={this.renderPostExcerpt(post.customFields.details)}></p>
 						</Link>
 					</div>
 				)
@@ -78,9 +78,9 @@ class FeaturedPosts extends Component {
 
 			< section className="posts-listing" >
 				<div className="container">
-					<h1>{this.props.item.fields.title}</h1>
+					<h1>{this.props.item.customFields.title}</h1>
 					<div className="posts-listing-container">
-						{this.props.item.fields.posts.referenceName}
+						{this.props.item.customFields.posts.referenceName}
 						{this.renderPosts()}
 					</div>
 				</div>
