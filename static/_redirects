@@ -1,2 +1,2 @@
 /resources*            https://agilitycms.com/resources:splat 200
-/dist/* 			   https://agility-gatsby-sync.netlify.com/dist/:splat 200
+/dist/* 			   https://agilitycms.com/dist/:splat 200
