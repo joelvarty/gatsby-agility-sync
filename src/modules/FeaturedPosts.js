@@ -30,7 +30,7 @@ export default props => (
 				})
 				post.dynamicUrl = sitemapNodeForPost.path;
 			})
-			console.log("featured posts", posts);
+
 			const viewModel = {
 				item: props.item,
 				posts: posts
