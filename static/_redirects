@@ -1,2 +1,3 @@
-/resources*            https://agilitycms.com/resources:splat 200
-/dist/* 			   https://agilitycms.com/dist/:splat 200
+/resources            https://agilitycms.com/resources        200
+/resources/*          https://agilitycms.com/resources/:splat 200
+/dist/* 			  https://agilitycms.com/dist/:splat      200
