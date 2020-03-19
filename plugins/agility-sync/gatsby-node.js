@@ -136,6 +136,19 @@ exports.createPages = async (args, configOptions) => {
 		}
 
 
+		console.log("create page", pagePath, sitemapNode)
+
+		if (sitemapNode.redirect && sitemapNode.redirect.url) {
+			//if the node is a link node, create a redirect...
+			await createRedirect({
+				fromPath: sitemapNode.path,
+				toPath: sitemapNode.redirect.url,
+				isPermantent: true,
+				redirectInBrowser: true
+			});
+
+			return
+		}
 
 		let createPageArgs = {
 			path: pagePath,
