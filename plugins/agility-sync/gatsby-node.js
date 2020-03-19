@@ -128,7 +128,7 @@ exports.createPages = async (args, configOptions) => {
 			await createRedirect({
 				fromPath: sitemapNode.path,
 				toPath: "/",
-				isPermantent: true,
+				isPermanent: true,
 				redirectInBrowser: true
 			});
 
@@ -143,7 +143,7 @@ exports.createPages = async (args, configOptions) => {
 			await createRedirect({
 				fromPath: sitemapNode.path,
 				toPath: sitemapNode.redirect.url,
-				isPermantent: true,
+				isPermanent: true,
 				redirectInBrowser: true
 			});
 

@@ -22,6 +22,7 @@ module.exports = {
 	},
 	plugins: [
 		`gatsby-plugin-react-helmet`,
+		`gatsby-plugin-netlify`,
 		{
 			resolve: "agility-sync", //the name of the plugin
 			options: {
